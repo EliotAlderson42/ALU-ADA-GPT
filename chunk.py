@@ -220,13 +220,15 @@ def get_epci(ville):
 
 start = time.time()
 ##Lecture du pdf into chunk
-text = ""
-with pdfplumber.open("document.pdf") as pdf:
-    for page in pdf.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
-print(f"La duree de l'extraction du pdf a duree {time.time() - start}")
+def pdfReader():
+    text = ""
+    with pdfplumber.open("document.pdf") as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+    return text
+# print(f"La duree de l'extraction du pdf a duree {time.time() - start}")
 
 start = time.time()
 chunks = chunk_text(text)
