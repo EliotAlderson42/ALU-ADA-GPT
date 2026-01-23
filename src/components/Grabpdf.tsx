@@ -1,46 +1,82 @@
-import {useState} from "react";
+import { useState, DragEvent } from "react";
 
-function Grabpdf() {
-    const [file, setFile] = useState<File | null>(null);
+type PdfUploaderProps = {
+  onFileSelected: (file: File) => void;
+};
 
-    //Pour 
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0){
-            setFile(e.dataTransfer.files[0])
-        }
-    };
+function PdfUploaderDragDrop({ onFileSelected }: PdfUploaderProps) {
+  const [dragging, setDragging] = useState(false);
 
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-    };
+  // Quand on dépose le fichier
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(false);
 
-    const handleUpload = () => {
-        if (!file) return;
-        alert('Prèt à envoyer : ${file.name}');
-    };
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
 
-    return (
-        <main>
-            <h2>Importer un PDF</h2>
-             <div
+    const file = e.dataTransfer.files[0];
+
+    if (file.type !== "application/pdf") {
+      alert("Veuillez sélectionner un PDF");
+      return;
+    }
+
+    onFileSelected(file);
+  };
+
+  // Quand on commence à drag
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  // Quand on quitte la zone de drop
+  const handleDragLeave = () => {
+    setDragging(false);
+  };
+
+  // Upload classique en cliquant
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    if (file.type !== "application/pdf") {
+      alert("Veuillez sélectionner un PDF");
+      return;
+    }
+
+    onFileSelected(file);
+  };
+
+  return (
+    <div>
+      <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         style={{
-          border: "2px dashed #4ade80",
-          padding: "40px",
+          border: dragging ? "2px dashed rgb(242, 0, 255)" : "2px dashed #9d9d9d",
+          padding: "100px",
           textAlign: "center",
           marginBottom: "20px",
+          borderRadius: "100px",
           cursor: "pointer",
         }}
       >
-        {file ? `Fichier sélectionné : ${file.name}` : "Glissez un PDF ici"}
+        {dragging ? "Déposez le PDF ici !" : "Glissez-déposez votre PDF"}
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={handleChange}
+          style={{ display: "none" }}
+          id="fileInput"
+        />
       </div>
-
-      <button onClick={handleUpload}>Envoyer</button>
-    </main>
+      <label htmlFor="fileInput" style={{ cursor: "pointer", color: "blue" }}>
+        Ou cliquez ici pour sélectionner un PDF
+      </label>
+    </div>
   );
-
 }
 
-export default Grabpdf
+export default PdfUploaderDragDrop;

@@ -220,9 +220,18 @@ def get_epci(ville):
 
 start = time.time()
 ##Lecture du pdf into chunk
-def pdfReader():
+# def pdfReader():
+#     text = ""
+#     with pdfplumber.open("document.pdf") as pdf:
+#         for page in pdf.pages:
+#             page_text = page.extract_text()
+#             if page_text:
+#                 text += page_text + "\n"
+#     return text
+
+def pdfReader(file):
     text = ""
-    with pdfplumber.open("document.pdf") as pdf:
+    with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
             page_text = page.extract_text()
             if page_text:
@@ -230,25 +239,25 @@ def pdfReader():
     return text
 # print(f"La duree de l'extraction du pdf a duree {time.time() - start}")
 
-start = time.time()
-chunks = chunk_text(text)
+# start = time.time()
+# chunks = chunk_text(text)
 
 # for chunk in chunks:
 #     print(f"{chunk}\n")
 ##Transformation de chaque chunk en embeddings = transformation numerique
-chunk_embeddings = []
-for chunk in chunks:
-    emb = ollama.embeddings(
-        model="nomic-embed-text",
-        prompt=chunk
-    )["embedding"]
-    chunk_embeddings.append(np.array(emb))
+# chunk_embeddings = []
+# for chunk in chunks:
+#     emb = ollama.embeddings(
+#         model="nomic-embed-text",
+#         prompt=chunk
+#     )["embedding"]
+#     chunk_embeddings.append(np.array(emb))
 
-print(f"La creation des chunks + embeddings a durée {time.time() - start}")
+# print(f"La creation des chunks + embeddings a durée {time.time() - start}")
 
 reranker = CrossEncoder("BAAI/bge-reranker-large")
 
-ollama_url = "http://localhost:11434/api/chat"
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
 prompt_ville = """Tu es un extracteur strict.
 Ta tâche est d’extraire UNE entité de type VILLE.
@@ -261,21 +270,9 @@ Règles ABSOLUES :
 - Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
 - Ne donne aucun contexte."""
 
-total = time.time()
-data = {}
-# for i in range(len(questions_rag)):
-if True:
-    start = time.time()
-    question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[2]["rerank"])["embedding"])
-    similarities = [cosine_similarity(question_emb, emb) for emb in chunk_embeddings]
-    top10_chunk = np.argsort(similarities)[-10:][::-1]
-    best_chunks = [chunks[i] for i in top10_chunk]
-    reranked_chunks = rerank(questions_rag[2]["rerank"], best_chunks)
-    top5real = reranked_chunks[:5]
-    merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n{chunk}" for i, chunk in enumerate(top5real))
-    # context = "\n\n".join(reranked_chunks[0][0])
+def send_playload(questions_rag, context, i):
     playload = {
-     "model": "mistral:7b-instruct",
+        "model": "mistral:7b-instruct",
         "messages": [
             {
                 "role": "system",
@@ -285,33 +282,97 @@ if True:
                 "role": "user",
                 "content": f"""
 CONTEXTE:
-{merged_context}
+{context}
 
 QUESTION:
-{questions_rag[2]["llm"]}
+{questions_rag[i]["llm"]}
 """
             }
         ],
-        "stream": False
+        "stream": False       
     }
-    if questions_rag[2]["keyword"] == "Ville":
+    if questions_rag[i]["keyword"] == "Ville":
         playload["messages"][0]["content"] = prompt_ville
     response = requests.post(ollama_url, json=playload)
     response.raise_for_status()
-    answer = response.json()["message"]["content"]
-    print(questions_rag[2]["llm"])
-    print("\n\n")
-    # print(f"{merged_context}\n\n")
-    # print("'''''''''''''''''''''''''''''")
-    # print("-------------------------")
-    print(answer)
-    if questions_rag[2]["keyword"] == "Ville":
-        print(f"EPCI de la ville/commune = {get_epci(answer)['nom']}")
-        travel_time(answer)
-    print(f"Question n°{2}/{len(questions_rag)} = {time.time() - start:.2f}secondes de temps de reponse")
-    print("-------------------------")
-    data[questions_rag[2]["keyword"]] = answer
+
+    return response.json()["message"]["content"] 
+
+def main_loop(embeddings, questions_rag, chunks):
+    q_r = {}
+    for i in range(len(questions_rag)):
+        question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
+
+        similarities = [cosine_similarity(question_emb, emb) for emb in chunk_embeddings]
+        top_10 = np.argsort(similarities)[-10:][::-1]
+        # best_chunks = [chunks[i] for i in top_10]
+        embed_rr_chunk = []
+        for i in top_10:
+            embed_rr_chunk.append(chunks[i])
+        reranked_chunks = rerank(question_emb, embed_rr_chunk)[:5]
+        merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n" for i, chunk in enumerate(reranked_chunks))
+        
+        answer = send_playload(questions_rag, merged_context, i)
+
+        if questions_rag[i]["keyword"] == "Ville":
+          travel_time(answer)
+    q_r[questions_rag[i]["llm"]] = answer
+    return q_r
+
     # print(len(chunks))
 
-print(f"Toutes les questions = {(time.time() - total) / 60:.2f}minutes")
-# travelTime(data["Ville"])
+
+total = time.time()
+data = {}
+# for i in range(len(questions_rag)):
+# if True:
+#     start = time.time()
+#     question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[2]["rerank"])["embedding"])
+#     similarities = [cosine_similarity(question_emb, emb) for emb in chunk_embeddings]
+#     top10_chunk = np.argsort(similarities)[-10:][::-1]
+#     best_chunks = [chunks[i] for i in top10_chunk]
+#     reranked_chunks = rerank(questions_rag[2]["rerank"], best_chunks)
+#     top5real = reranked_chunks[:5]
+#     merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n{chunk}" for i, chunk in enumerate(top5real))
+#     # context = "\n\n".join(reranked_chunks[0][0])
+#     playload = {
+#      "model": "mistral:7b-instruct",
+#         "messages": [
+#             {
+#                 "role": "system",
+#                 "content": system_prompt
+#             },
+#             {
+#                 "role": "user",
+#                 "content": f"""
+# CONTEXTE:
+# {merged_context}
+
+# QUESTION:
+# {questions_rag[2]["llm"]}
+# """
+#             }
+#         ],
+#         "stream": False
+#     }
+#     if questions_rag[2]["keyword"] == "Ville":
+#         playload["messages"][0]["content"] = prompt_ville
+#     response = requests.post(ollama_url, json=playload)
+#     response.raise_for_status()
+#     answer = response.json()["message"]["content"]
+#     print(questions_rag[2]["llm"])
+#     print("\n\n")
+#     # print(f"{merged_context}\n\n")
+#     # print("'''''''''''''''''''''''''''''")
+#     # print("-------------------------")
+#     print(answer)
+#     if questions_rag[2]["keyword"] == "Ville":
+#         print(f"EPCI de la ville/commune = {get_epci(answer)['nom']}")
+#         travel_time(answer)
+#     print(f"Question n°{2}/{len(questions_rag)} = {time.time() - start:.2f}secondes de temps de reponse")
+#     print("-------------------------")
+#     data[questions_rag[2]["keyword"]] = answer
+#     # print(len(chunks))
+
+# print(f"Toutes les questions = {(time.time() - total) / 60:.2f}minutes")
+# # travelTime(data["Ville"])

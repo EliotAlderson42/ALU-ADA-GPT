@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useState } from 'react';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Results from "./components/Results";
+// import Home from "./components/Home"
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -35,14 +38,25 @@ import Home from "./components/Home"
 //   )
 // }
 
+
+// Type pour les questions
+type QuestionType = { question: string; reponse: string };
+
 function App() {
+  // 1️⃣ State global pour stocker les questions
+  const [questions, setQuestions] = useState<QuestionType[]>([]);
+
   return (
-    <>
-      <Header />
-      <Home />
-      <Grabpdf />
-    </>
-  )
+    <BrowserRouter>
+      <Routes>
+        {/* 2️⃣ Page d’accueil */}
+        <Route path="/" element={<Home setQuestions={setQuestions} />} />
+
+        {/* 3️⃣ Page de résultats */}
+        <Route path="/results" element={<Results questions={questions} />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App
