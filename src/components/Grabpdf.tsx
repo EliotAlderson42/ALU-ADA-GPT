@@ -49,32 +49,30 @@ function PdfUploaderDragDrop({ onFileSelected }: PdfUploaderProps) {
   };
 
   return (
-    <div>
+    <div className="uploader">
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        style={{
-          border: dragging ? "2px dashed rgb(242, 0, 255)" : "2px dashed #9d9d9d",
-          padding: "100px",
-          textAlign: "center",
-          marginBottom: "20px",
-          borderRadius: "100px",
-          cursor: "pointer",
-        }}
+        className={`dropzone ${dragging ? "dropzone--active" : ""}`}
       >
-        {dragging ? "Déposez le PDF ici !" : "Glissez-déposez votre PDF"}
+        <p className="dropzone-title">
+          {dragging ? "Déposez le PDF ici !" : "Glissez-déposez votre PDF"}
+        </p>
+        <p className="dropzone-subtitle">
+          Le fichier reste sur ton ordinateur, seul le contenu est analysé.
+        </p>
         <input
           type="file"
           accept="application/pdf"
           onChange={handleChange}
-          style={{ display: "none" }}
+          className="dropzone-input"
           id="fileInput"
         />
+        <label htmlFor="fileInput" className="dropzone-button">
+          Ou cliquez pour choisir un PDF
+        </label>
       </div>
-      <label htmlFor="fileInput" style={{ cursor: "pointer", color: "blue" }}>
-        Ou cliquez ici pour sélectionner un PDF
-      </label>
     </div>
   );
 }

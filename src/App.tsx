@@ -1,62 +1,39 @@
-import { useState } from 'react';
+import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "./App.css";
+import Header from "./components/Header";
+import Home from "./components/Home";
 import Results from "./components/Results";
-// import Home from "./components/Home"
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import Header from "./components/Header"
-import Grabpdf from "./components/Grabpdf"
-import Home from "./components/Home"
 
-// function App() {
-//   const [count, setCount] = useState(0)
-
-//   return (
-//     <>
-//       <div>
-//         <a href="https://vite.dev" target="_blank">
-//           <img src={viteLogo} className="logo" alt="Vite logo" />
-//         </a>
-//         <a href="https://react.dev" target="_blank">
-//           <img src={reactLogo} className="logo react" alt="React logo" />
-//         </a>
-//       </div>
-//       <h1>Vite + React</h1>
-//       <div className="card">
-//         <button onClick={() => setCount((count) => count + 1)}>
-//           count is {count}
-//         </button>
-//         <p>
-//           Edit <code>src/App.tsx</code> and save to test HMR
-//         </p>
-//       </div>
-//       <p className="read-the-docs">
-//         Click on the Vite and React logos to learn more
-//       </p>
-//     </>
-//   )
-// }
-
-
-// Type pour les questions
-type QuestionType = { question: string; reponse: string };
+// Type partagé pour les questions/réponses
+export type Question = { question: string; reponse: string };
 
 function App() {
-  // 1️⃣ State global pour stocker les questions
-  const [questions, setQuestions] = useState<QuestionType[]>([]);
+  // State global pour stocker les questions générées par le backend
+  const [questions, setQuestions] = useState<Question[]>([]);
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* 2️⃣ Page d’accueil */}
-        <Route path="/" element={<Home setQuestions={setQuestions} />} />
+      <div className="app-shell">
+        <Header />
 
-        {/* 3️⃣ Page de résultats */}
-        <Route path="/results" element={<Results questions={questions} />} />
-      </Routes>
+        <main className="app-main">
+          <Routes>
+            {/* Page d’accueil : upload du PDF */}
+            <Route path="/" element={<Home setQuestions={setQuestions} />} />
+
+            {/* Page de résultats : affiche les QA */}
+            <Route path="/results" element={<Results questions={questions} />} />
+          </Routes>
+        </main>
+
+        <footer className="app-footer">
+          <span>ALU / ADA GPT • Projet RAG PDF</span>
+        </footer>
+      </div>
     </BrowserRouter>
   );
 }
 
-export default App
+export default App;
+

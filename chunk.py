@@ -195,17 +195,39 @@ def chunk_text(text, chunk_size=300, overlap=50):
     return chunks
 ##################################################################################################
 def travel_time(ville):
-    # name = ville.split()
-    # name = name[0] + ", France"
-
-    geolocator = Nominatim(user_agent="my_geocoder")
-    data = geolocator.geocode(ville + ", France")
-    data1 = geolocator.geocode("Epinay-sur-Orge, France")
-    url = f"http://router.project-osrm.org/route/v1/driving/{data1.longitude},{data1.latitude};{data.longitude},{data.latitude}?overview=false"
-    res = requests.get(url).json()
-
-    duree_sec = res['routes'][0]['duration']
-    print(f"Temps de trajet pour se rendre à {ville}: {duree_sec/3600:.2f} heures")
+    """
+    Calcule le temps de trajet vers une ville (optionnel, ne bloque pas si erreur).
+    """
+    try:
+        if not ville or ville.upper() in ["AUCUNE", "NON PRÉCISÉ", "INFORMATION NON PRÉCISÉ"]:
+            return  # Pas de calcul si pas de ville
+        
+        geolocator = Nominatim(user_agent="my_geocoder")
+        data = geolocator.geocode(ville + ", France", timeout=10)
+        
+        if not data:
+            print(f"Ville '{ville}' non trouvée pour le calcul de trajet")
+            return
+        
+        data1 = geolocator.geocode("Epinay-sur-Orge, France", timeout=10)
+        if not data1:
+            print("Point de départ (Epinay-sur-Orge) non trouvé")
+            return
+        
+        url = f"http://router.project-osrm.org/route/v1/driving/{data1.longitude},{data1.latitude};{data.longitude},{data.latitude}?overview=false"
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        route_data = res.json()
+        
+        if 'routes' in route_data and len(route_data['routes']) > 0:
+            duree_sec = route_data['routes'][0]['duration']
+            print(f"Temps de trajet pour se rendre à {ville}: {duree_sec/3600:.2f} heures")
+        else:
+            print(f"Impossible de calculer le trajet vers {ville}")
+    except Exception as e:
+        # Ne pas faire planter le programme si le calcul de trajet échoue
+        print(f"Erreur lors du calcul du temps de trajet vers {ville}: {str(e)}")
+        pass
 #################################################################################################
 def get_epci(ville):
     url = f"https://geo.api.gouv.fr/communes?nom={ville}&fields=codeEpci,epci&limit=1"
@@ -259,6 +281,36 @@ reranker = CrossEncoder("BAAI/bge-reranker-large")
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
+def check_ollama_health():
+    """Vérifie que Ollama est accessible et que le modèle existe."""
+    try:
+        # Vérifier que le serveur Ollama répond
+        health_url = "http://localhost:11434/api/tags"
+        response = requests.get(health_url, timeout=5)
+        response.raise_for_status()
+        
+        # Vérifier que le modèle existe
+        models = response.json().get("models", [])
+        model_names = [m.get("name", "") for m in models]
+        required_model = "mistral:7b-instruct"
+        
+        if required_model not in model_names:
+            available = ", ".join(model_names[:5]) if model_names else "aucun"
+            raise Exception(
+                f"Modèle '{required_model}' non trouvé. "
+                f"Modèles disponibles: {available}. "
+                f"Installe-le avec: ollama pull {required_model}"
+            )
+        
+        return True
+    except requests.exceptions.ConnectionError:
+        raise Exception(
+            "Ollama n'est pas accessible à http://localhost:11434. "
+            "Assure-toi qu'Ollama est démarré: ollama serve"
+        )
+    except Exception as e:
+        raise Exception(f"Erreur lors de la vérification d'Ollama: {str(e)}")
+
 prompt_ville = """Tu es un extracteur strict.
 Ta tâche est d’extraire UNE entité de type VILLE.
 
@@ -270,7 +322,23 @@ Règles ABSOLUES :
 - Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
 - Ne donne aucun contexte."""
 
-def send_playload(questions_rag, context, i):
+def send_playload(questions_rag, context, i, max_retries=3, timeout=120):
+    """
+    Envoie une requête à Ollama avec gestion d'erreurs et retry.
+    
+    Args:
+        questions_rag: Liste des questions
+        context: Contexte à envoyer
+        i: Index de la question
+        max_retries: Nombre de tentatives en cas d'échec
+        timeout: Timeout en secondes (défaut: 120s)
+    
+    Returns:
+        str: Réponse de Ollama
+    
+    Raises:
+        Exception: Si toutes les tentatives échouent
+    """
     playload = {
         "model": "mistral:7b-instruct",
         "messages": [
@@ -293,30 +361,113 @@ QUESTION:
     }
     if questions_rag[i]["keyword"] == "Ville":
         playload["messages"][0]["content"] = prompt_ville
-    response = requests.post(ollama_url, json=playload)
-    response.raise_for_status()
+    
+    # Limiter la taille du contexte pour éviter les timeouts
+    max_context_length = 8000  # caractères max
+    if len(playload["messages"][1]["content"]) > max_context_length:
+        # Tronquer le contexte si trop long
+        truncated_context = context[:max_context_length - 500] + "\n\n[... contexte tronqué ...]"
+        playload["messages"][1]["content"] = f"""
+CONTEXTE:
+{truncated_context}
 
-    return response.json()["message"]["content"] 
+QUESTION:
+{questions_rag[i]["llm"]}
+"""
+    
+    # Retry logic
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                OLLAMA_URL, 
+                json=playload,
+                timeout=timeout  # Timeout pour éviter les blocages
+            )
+            response.raise_for_status()
+            
+            # Vérifier que la réponse est valide
+            result = response.json()
+            if "message" not in result or "content" not in result["message"]:
+                raise ValueError(f"Réponse Ollama invalide: {result}")
+            
+            return result["message"]["content"]
+            
+        except requests.exceptions.Timeout:
+            last_error = f"Timeout après {timeout}s (tentative {attempt + 1}/{max_retries})"
+            if attempt < max_retries - 1:
+                time.sleep(2)  # Attendre 2s avant de réessayer
+                continue
+            else:
+                raise Exception(f"Timeout Ollama après {max_retries} tentatives: {last_error}")
+                
+        except requests.exceptions.ConnectionError:
+            last_error = f"Impossible de se connecter à Ollama à {OLLAMA_URL} (tentative {attempt + 1}/{max_retries})"
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            else:
+                raise Exception(f"Ollama n'est pas accessible: {last_error}. Assure-toi qu'Ollama est démarré (ollama serve)")
+                
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"Erreur HTTP {e.response.status_code}"
+            try:
+                error_detail = e.response.json()
+                if "error" in error_detail:
+                    error_msg += f": {error_detail['error']}"
+            except:
+                error_msg += f": {e.response.text[:200]}"
+            
+            # Si erreur 404, le modèle n'existe peut-être pas
+            if e.response.status_code == 404:
+                raise Exception(f"Modèle 'mistral:7b-instruct' introuvable. Vérifie qu'il est installé: ollama pull mistral:7b-instruct")
+            
+            last_error = error_msg
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            else:
+                raise Exception(f"Erreur HTTP Ollama après {max_retries} tentatives: {last_error}")
+                
+        except Exception as e:
+            last_error = str(e)
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            else:
+                raise Exception(f"Erreur lors de l'appel à Ollama après {max_retries} tentatives: {last_error}")
+    
+    # Ne devrait jamais arriver ici, mais au cas où
+    raise Exception(f"Échec après {max_retries} tentatives: {last_error}") 
 
 def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     for i in range(len(questions_rag)):
         question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
 
-        similarities = [cosine_similarity(question_emb, emb) for emb in chunk_embeddings]
+        # Correction: utiliser 'embeddings' au lieu de 'chunk_embeddings'
+        similarities = [cosine_similarity(question_emb, emb) for emb in embeddings]
         top_10 = np.argsort(similarities)[-10:][::-1]
-        # best_chunks = [chunks[i] for i in top_10]
-        embed_rr_chunk = []
-        for i in top_10:
-            embed_rr_chunk.append(chunks[i])
-        reranked_chunks = rerank(question_emb, embed_rr_chunk)[:5]
-        merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n" for i, chunk in enumerate(reranked_chunks))
+        
+        # Correction: utiliser 'idx' au lieu de 'i' pour éviter la collision de variables
+        best_chunks = []
+        for idx in top_10:
+            best_chunks.append(chunks[idx])
+        
+        # Correction: passer la question textuelle au rerank, pas l'embedding
+        reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:5]
+        
+        # Correction: inclure le texte des chunks dans le contexte
+        merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
         
         answer = send_playload(questions_rag, merged_context, i)
 
         if questions_rag[i]["keyword"] == "Ville":
-          travel_time(answer)
-    q_r[questions_rag[i]["llm"]] = answer
+            travel_time(answer)
+        
+        # Correction: déplacer cette ligne DANS la boucle
+        q_r[questions_rag[i]["llm"]] = answer
+    
     return q_r
 
     # print(len(chunks))
