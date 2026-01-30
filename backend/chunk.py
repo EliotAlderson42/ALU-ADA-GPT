@@ -34,8 +34,8 @@ questions_rag = [
         "keyword": "Region"
     },
     {
-        "llm": "Extrait le nom du département si celui-ci est écrit dans le texte fourni dans le cas contraire répond simplement: Non précisé",
-        "rerank": "Dans quel code postal se trouve le projet",
+        "llm": "Extrait le(s) code(s) postal ou le(s) département(s) dans lequel se situe le projet",
+        "rerank": "Dans quel code postal/département se trouve le projet",
         "user": "Dans quel département se situe le projet ?",
         "keyword": "Département"
     },
@@ -339,17 +339,6 @@ def pdfReader(file):
 
 def addMetaData(chunk):
     mois = "janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre"
-    # pattern = r"\b\d{1,3}(?:[ .]?\d{3})*(?:[.,]\d{1,2})?\s?[€$]?\b"
-    # pattern = "(?:^|\s)(\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))\s?[€$](?:$|\s)"
-    # pattern = r"(?:^|\s)(\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))\s?[€$](?:$|\s)"
-#     PRICE_PATTERN = re.compile(
-#     r"(?<!\d)"
-#     r"(?:€\s?)?"
-#     r"(?:\d{1,3}(?:[ .]\d{3})*|\d+)"
-#     r"(?:[.,]\d{2})?"
-#     r"\s?€"
-#     r"(?!\d)"
-# )*
     PRICE_PATTERN = re.compile(
         r"(?<!\w)"                              # pas collé à une lettre
         r"(?:€\s*)?"                            # € optionnel avant
@@ -358,15 +347,19 @@ def addMetaData(chunk):
         r"\s*€"                                 # € OBLIGATOIRE après
         r"(?!\w)"                               # pas collé à une lettre
     )
-
+    MILLION_PATTERN = re.compile(
+    r"\b\d{1,3}\s+millions?\s+d['’]euros\b",
+    re.IGNORECASE
+)
+    POSTAL_CODE_PATTERN = re.compile(r"\b\d{2}\s?\d{3}\b")
     pattern2 = r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"
     pattern3 = rf"\b\d{{1,2}}\s(?:{mois})\s\d{{4}}\b"
     for i in range(len(chunk)):
         print(i)
         text = chunk[i]["text"]
-        if re.search(r"\d{5}", text):
+        if re.search(POSTAL_CODE_PATTERN, text):
             chunk[i]["metadata"]["has_postal_code"] = True
-        if re.search(PRICE_PATTERN, text):
+        if re.search(PRICE_PATTERN, text) or re.search(MILLION_EURO_PATTERN, text):
             print(chunk[i]["text"])
             chunk[i]["metadata"]["has_price"] = True
         if re.search(pattern2, text) or re.search(pattern3, text):
@@ -444,13 +437,13 @@ QUESTION:
         playload["messages"][0]["content"] = prompt_ville
     
     # Limiter la taille du contexte pour éviter les timeouts
-    max_context_length = 8000  # caractères max
-    if len(playload["messages"][1]["content"]) > max_context_length:
+    # max_context_length = 8000  # caractères max
+    # if len(playload["messages"][1]["content"]) > max_context_length:
         # Tronquer le contexte si trop long
-        truncated_context = context[:max_context_length - 500] + "\n\n[... contexte tronqué ...]"
-        playload["messages"][1]["content"] = f"""
+        # truncated_context = context[:max_context_length - 500] + "\n\n[... contexte tronqué ...]"
+    playload["messages"][1]["content"] = f"""
 CONTEXTE:
-{truncated_context}
+{context}
 
 QUESTION:
 {questions_rag[i]["llm"]}
