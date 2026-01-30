@@ -1,17 +1,33 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import shutil
 import tempfile
 import os
+import sys
 import backend.chunk as chunk
 import numpy as np
 import ollama
 
 app = FastAPI(title="ALU/ADA GPT - RAG PDF")
 
+
+@app.on_event("startup")
+def startup():
+    print("[BACKEND] Démarré. POST /upload et GET /health disponibles sur http://127.0.0.1:8000", flush=True)
+
+
+@app.get("/health")
+def health():
+    """Vérifie que le backend répond (utilisé par le proxy / front)."""
+    return {"status": "ok"}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Ajout du port Vite par défaut
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,6 +35,10 @@ app.add_middleware(
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
+    print("[BACKEND] Upload reçu:", file.filename, flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
     
@@ -28,6 +48,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50MB)")
     
     temp_file = None
+    temp_file_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             temp_file.write(file_content)

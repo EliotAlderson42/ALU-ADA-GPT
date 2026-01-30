@@ -22,7 +22,7 @@ questions_rag = [
         "keyword" : "Nature"
     },
     {
-        "llm": "Quel est le montant prévisionnel des travaux indiqué dans le document ?",
+        "llm": "Quel est le montant prévisionnel des travaux/projet indiqué dans le document ?",
         "rerank": "Montant/prix/cout prévisionnel du projet",
         "user": "Quel est le montant prévisionnel des travaux ?",
         "keyword" : "Travaux"
@@ -203,6 +203,42 @@ def rerank(question, chunks):
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
+
+def nettoyer_caracteres_repetes(text):
+    """
+    Nettoie le texte de tous les caractères qui se répètent en boucle
+    (points, espaces, virgules, tirets, etc.).
+    Préserve les mots et chiffres normaux (ex: "100", "hello").
+    """
+    if not text or not isinstance(text, str):
+        return text
+    # Espaces / tabulations multiples -> un seul espace
+    text = re.sub(r"[ \t]+", " ", text)
+    # Retours à la ligne multiples -> au plus 2 (un paragraphe)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    # Points répétés -> un seul point
+    text = re.sub(r"\.+", ".", text)
+    # Virgules répétées -> une seule virgule
+    text = re.sub(r",+", ",", text)
+    # Point-virgules répétés
+    text = re.sub(r";+", ";", text)
+    # Deux-points répétés
+    text = re.sub(r":+", ":", text)
+    # Tirets / underscores répétés
+    text = re.sub(r"-+", "-", text)
+    text = re.sub(r"_+", "_", text)
+    # Guillemets répétés
+    text = re.sub(r'"+', '"', text)
+    text = re.sub(r"'+", "'", text)
+    # Parenthèses répétées (ex: ((( -> ()
+    text = re.sub(r"\(+", "(", text)
+    text = re.sub(r"\)+", ")", text)
+    # Retirer les espaces en début/fin de ligne
+    text = re.sub(r" *\n *", "\n", text)
+    print("SALUT 2")
+    return text.strip()
+
+
 ##Fonction pour decouper mon pdf en plusieurs petits bouts lisible pour eviter de trop consommer
 def chunk_text(text, chunk_size=300, overlap=50):
     words = text.split()
@@ -224,7 +260,6 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_date": False,
                 "language": "fr",
             },
-            "llm_hints": [],
         }
 
         chunks.append(chunk)
@@ -234,31 +269,6 @@ def chunk_text(text, chunk_size=300, overlap=50):
 
     return chunks
 
-# def chunk_text(text, chunk_size=300, overlap=50):
-#     words = text.split()
-#     chunks = []
-#     start = 0
-#     i = 0
-#     while start < len(words):
-#         chunk = {
-#             "text": "",
-#             "metadata": {
-#                 "id": i,
-#                 "has_postal_code": False,
-#                 "has_price": False,
-#                 "has_date": False,
-#                 "language": "fr",
-#             },
-#             "llm_hints": "",
-#         }
-#         end = start + chunk_size
-#         chunk["text"] = words[start:end]
-#         # chunk = re.sub(rf"{re.escape('.')}+", '.', words[start:end])
-#         chunks.append(" ".join(chunk))
-#         start += chunk_size - overlap
-#         i += 1
-#     # print(chunks)
-#     return chunks
 
 ##################################################################################################
 def travel_time(ville):
@@ -325,21 +335,42 @@ def pdfReader(file):
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-    return text
+    return nettoyer_caracteres_repetes(text)
 
 def addMetaData(chunk):
     mois = "janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre"
-    pattern = r"\d{5}"
-    if re.search(r"\d{5}", chunk):
-        chunk["metadata"]["has_code_postale"] = True
-    pattern = r"\b\d{1,3}(?:[ .]?\d{3})*(?:[.,]\d{1,2})?\s?[€$]?\b"
-    if re.search(pattern, chunk):
-        chunk["metadata"]["has_price"] = True
-    pattern = r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"
-    pattern2 = rf"\b\d{{1,2}}\s(?:{mois})\s\d{{4}}\b"
-    if re.search(pattern, chunk) or re.search(pattern2, chunk):
-        chunk["metadata"]["has_date"] = True
-    
+    # pattern = r"\b\d{1,3}(?:[ .]?\d{3})*(?:[.,]\d{1,2})?\s?[€$]?\b"
+    # pattern = "(?:^|\s)(\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))\s?[€$](?:$|\s)"
+    # pattern = r"(?:^|\s)(\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2}))\s?[€$](?:$|\s)"
+#     PRICE_PATTERN = re.compile(
+#     r"(?<!\d)"
+#     r"(?:€\s?)?"
+#     r"(?:\d{1,3}(?:[ .]\d{3})*|\d+)"
+#     r"(?:[.,]\d{2})?"
+#     r"\s?€"
+#     r"(?!\d)"
+# )*
+    PRICE_PATTERN = re.compile(
+        r"(?<!\w)"                              # pas collé à une lettre
+        r"(?:€\s*)?"                            # € optionnel avant
+        r"(?:\d{1,3}(?:[ .]\d{3})+|\d+)"        # nombre OU milliers
+        r"(?:[.,]\d{2})?"                       # centimes optionnels
+        r"\s*€"                                 # € OBLIGATOIRE après
+        r"(?!\w)"                               # pas collé à une lettre
+    )
+
+    pattern2 = r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"
+    pattern3 = rf"\b\d{{1,2}}\s(?:{mois})\s\d{{4}}\b"
+    for i in range(len(chunk)):
+        print(i)
+        text = chunk[i]["text"]
+        if re.search(r"\d{5}", text):
+            chunk[i]["metadata"]["has_postal_code"] = True
+        if re.search(PRICE_PATTERN, text):
+            print(chunk[i]["text"])
+            chunk[i]["metadata"]["has_price"] = True
+        if re.search(pattern2, text) or re.search(pattern3, text):
+            chunk[i]["metadata"]["has_date"] = True
 
 
 reranker = CrossEncoder("BAAI/bge-reranker-large")
@@ -490,30 +521,37 @@ QUESTION:
     # Ne devrait jamais arriver ici, mais au cas où
     raise Exception(f"Échec après {max_retries} tentatives: {last_error}") 
 
-def match_metadata(keyword, chunks):
+def match_metadata(keyword, chunks, embeddings):
     candidats = []
-    if keyword == "limite1" or keyword == "limite2" or keyword == "questions":
-        candidats = [chunk for chunks in chunks if chunk["metadata"]["has_date"]]
+    candidats_emb = []
+    if keyword in ("limite1", "Limite2", "limite2", "questions"):
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_date"]]
     elif keyword == "Travaux":
-        candidats = [chunk for chunks in chunks if chunk["metadata"]["has_price"]]
-    elif keyword == "département":
-        candidats = [chunk for chunks in chunks if chunk["metadata"]["has_postal_code"]]
-    return candidats
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_price"]]
+    elif keyword == "Département":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_postal_code"]]
+    else:
+        # Pas de filtre métadonnées : utiliser tous les chunks
+        return embeddings, chunks
+    candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]
+    return candidats_emb, candidats
 
 
 def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     for i in range(len(questions_rag)):
+    # if True:
         question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
-
-        # Correction: utiliser 'embeddings' au lieu de 'chunk_embeddings'
-        similarities = [cosine_similarity(question_emb, emb) for emb in embeddings]
+        addMetaData(chunks)
+        data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
+        similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
         top_10 = np.argsort(similarities)[-10:][::-1]
+        
         # Correction: utiliser 'idx' au lieu de 'i' pour éviter la collision de variables
-        print(chunks[3]["text"])
+        # print(chunks[3]["text"])
         best_chunks = []
         for idx in top_10:
-            best_chunks.append(chunks[idx]["text"])
+            best_chunks.append(candidats[idx]["text"])
         print("SALUT")
         
         # Correction: passer la question textuelle au rerank, pas l'embedding
@@ -521,7 +559,7 @@ def main_loop(embeddings, questions_rag, chunks):
         
         # Correction: inclure le texte des chunks dans le contexte
         merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
-        
+        print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
         answer = send_playload(questions_rag, merged_context, i)
 
         if questions_rag[i]["keyword"] == "Ville":
