@@ -1,0 +1,15 @@
+Creation des chunks = Verifier quel type de pdf jai recu (Bien paraphés; découpe grotesque)
+
+En fonction du type de pdf je découpe intelligement (Besoin d'identifier le type de pdf, et la maniere de découper selon le type)
+
+On embed ces chunk et on comparle leurs similarités.
+
+Si la similarité est haute (>= 0.75) on ESSAYE de fusionner des chunks dans la limite de la taille max du contexte que peut recevoir le llm
+
+Si la fusion depasse LEN_MAX je cherche a fusionner INTELLIGEMENT (Couper en fin de phrase etc)
+
+Jenvoie ensuite ces chunks
+
+A suivre : 
+
+Ajout de meta_data = numero de pages, detection d'un mots clé etc ..

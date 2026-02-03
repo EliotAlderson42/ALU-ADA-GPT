@@ -359,7 +359,7 @@ def addMetaData(chunk):
         text = chunk[i]["text"]
         if re.search(POSTAL_CODE_PATTERN, text):
             chunk[i]["metadata"]["has_postal_code"] = True
-        if re.search(PRICE_PATTERN, text) or re.search(MILLION_EURO_PATTERN, text):
+        if re.search(PRICE_PATTERN, text) or re.search(MILLION_PATTERN, text):
             print(chunk[i]["text"])
             chunk[i]["metadata"]["has_price"] = True
         if re.search(pattern2, text) or re.search(pattern3, text):

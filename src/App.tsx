@@ -4,6 +4,7 @@ import "./App.css";
 import Header from "./components/Header";
 import Home from "./components/Home";
 import Results from "./components/Results";
+import Questions from "./components/Questions";
 
 // Type partagé pour les questions/réponses
 export type Question = { question: string; reponse: string };
@@ -24,6 +25,9 @@ function App() {
 
             {/* Page de résultats : affiche les QA */}
             <Route path="/results" element={<Results questions={questions} />} />
+
+            {/* Gestion des questions RAG (base de données) */}
+            <Route path="/questions" element={<Questions />} />
           </Routes>
         </main>
 
