@@ -109,7 +109,13 @@ async def upload_pdf(file: UploadFile = File(...)):
         
         text = chunk.pdfReader(temp_file_path)
 
-        chunks = chunk.chunk_text(text)
+        # Chunks par clustering K-means (phrases → embeddings → clusters) ou par fenêtre glissante
+        use_clustering = os.environ.get("USE_CLUSTERING_CHUNKS", "1") == "1"
+        chunks = (
+            chunk.chunk_text_by_clustering(text)
+            if use_clustering
+            else chunk.chunk_text(text)
+        )
 
         chunk_embeddings = []
         for c in chunks:
@@ -125,7 +131,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             {"llm": q["llm"], "rerank": q["rerank"], "user": q["user"], "keyword": q["keyword"]}
             for q in questions_rag
         ]
-        res = chunk.main_loop(chunk_embeddings, questions_rag, chunks)
+        res = chunk.main_loop(questions_rag, text)
 
         q_r = []
         for key, value in res.items():
@@ -137,6 +143,9 @@ async def upload_pdf(file: UploadFile = File(...)):
         return q_r
     
     except Exception as e:
+        import traceback
+        print("[BACKEND] Erreur pendant /upload:", repr(e), flush=True)
+        print(traceback.format_exc(), flush=True)
         raise HTTPException(status_code=500, detail=f"Erreur lors du traitement: {str(e)}")
     
     finally:

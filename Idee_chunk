@@ -10,6 +10,89 @@ Si la fusion depasse LEN_MAX je cherche a fusionner INTELLIGEMENT (Couper en fin
 
 Jenvoie ensuite ces chunks
 
+CLUSTERING A TESTER ALTERNATIVES AUX CHUNKS
+
 A suivre : 
 
 Ajout de meta_data = numero de pages, detection d'un mots clé etc ..
+
+
+
+
+mots cles pour regex=
+
+Quel est le type d'infrastructure décrit dans le document ? 
+Exemple type d'infrastructure(ecole, batiments, parking)
+
+Quelle est la nature de l'operation ?
+Exemple type(Neuf, extension, réhabilitation)
+
+Montant prévisionnel des travaux  
+Déja fait
+
+
+Dans quelle région administratif se situe le projet ?
+regex adresse, regex code postale. Insufusant pour le mmoment .
+
+Extrait le code postale
+regex
+
+Extrait la ville
+regex code postale aussi
+
+Quelle est la succursale ?
+Je dois analyser des pdf
+
+Qui est le maitre d'ouvrages?
+"Maître", "Ouvrage" need analyse more
+
+Quel est le type de selection du projet tel qu'indiqué?
+"Appel d'offres", "Appel à candidatures"
+
+Quel est le types de procédure de passation du marché?
+"Appel d'offres", "concours", "marché global", "procédure adapté" 
+
+Le document précise-t-il qu'un mandataire est requis ?
+"Mandataire"
+
+Quelle est la date limite1?
+déja faite
+
+Quelle est la date limite 2?
+Déja faite
+
+Quelle est la date limite pour els questions ?
+Meme principe de regex de date mais mieux reformuler la question
+
+Une exclusivité est elle imposé aux bueaux d'etudes ?
+"bureaux d'études", "exclusivité"
+
+Le document mentionne-t-il une visite sur site ?
+need to analyse pdf
+
+Quelles sont les compétences ou spécialtés exigées pour la constitution de l'equipe ?
+"Nom de specialités"
+
+Combien de références minimum sont demandées a l'architecte ?
+"références"
+
+Quelles sont les misssions demandés a l'architecte ?
+mission complète, DIAG, FAISA, REL, EXE ...
+
+Le marché est-il decouper en tranches?
+"tranches"
+
+Quelles sont les pases de la mission?
+"phases"
+
+Le projet prevoie til l'intervention d'un assistant à maitrise d'ouvrages ou d'un maitre d'ouvrages ?
+"Assistant à maitrise d'ouvrages", "maitre d'ouvrages"
+
+Une prime de concours est-elle prévue ?
+"Prime" + regex euros
+
+Le document impose-t-il la realisation dune maquette ?
+"maquette"
+
+Le document impose til la realisation d'un film?
+"film", "vidéos"
