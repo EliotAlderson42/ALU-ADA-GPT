@@ -17,6 +17,7 @@ function Questions() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ llm: "", rerank: "", user: "", keyword: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchQuestions = async () => {
     setLoading(true);
@@ -65,6 +66,22 @@ function Questions() {
     }
   };
 
+  const handleSyncFromDefault = async () => {
+    if (!confirm("Remplacer toutes les questions par la liste questions_rag du code ?")) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/questions/sync-from-default`, { method: "POST" });
+      if (!res.ok) throw new Error("Synchronisation impossible");
+      const data = await res.json();
+      setQuestions(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("Supprimer cette question ?")) return;
     try {
@@ -82,6 +99,13 @@ function Questions() {
       <p className="questions-intro">
         Ces questions sont posées au document lors de l'analyse PDF. Tu peux en ajouter ou en supprimer.
       </p>
+
+      <div className="questions-sync-wrap">
+        <button type="button" className="questions-sync-btn" onClick={handleSyncFromDefault} disabled={syncing}>
+          {syncing ? "Synchronisation…" : "Synchroniser avec questions_rag (code)"}
+        </button>
+        <span className="questions-sync-hint">Remplace toute la base par la liste définie dans chunk.py</span>
+      </div>
 
       {error && (
         <div className="error-message">

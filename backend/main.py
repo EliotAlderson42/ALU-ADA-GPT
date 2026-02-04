@@ -73,6 +73,15 @@ def update_question(question_id: int, body: QuestionUpdate):
     return updated
 
 
+@app.post("/questions/sync-from-default")
+def sync_questions_from_default():
+    """
+    Remplace toutes les questions en base par la liste questions_rag de chunk.py.
+    Utile pour resynchroniser la base avec le code quand tu as modifié questions_rag.
+    """
+    return db.sync_from_default_questions()
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -110,12 +119,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         text = chunk.pdfReader(temp_file_path)
 
         # Chunks par clustering K-means (phrases → embeddings → clusters) ou par fenêtre glissante
-        use_clustering = os.environ.get("USE_CLUSTERING_CHUNKS", "1") == "1"
-        chunks = (
-            chunk.chunk_text_by_clustering(text)
-            if use_clustering
-            else chunk.chunk_text(text)
-        )
+        chunks = chunk.chunk_text(text)
 
         chunk_embeddings = []
         for c in chunks:
@@ -131,7 +135,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             {"llm": q["llm"], "rerank": q["rerank"], "user": q["user"], "keyword": q["keyword"]}
             for q in questions_rag
         ]
-        res = chunk.main_loop(questions_rag, text)
+        res = chunk.main_loop(chunk_embeddings, questions_rag, chunks)
 
         q_r = []
         for key, value in res.items():

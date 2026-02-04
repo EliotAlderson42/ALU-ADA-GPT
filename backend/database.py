@@ -55,6 +55,22 @@ def _seed_default_questions(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def sync_from_default_questions() -> list[dict[str, Any]]:
+    """
+    Remplace tout le contenu de la table par la liste questions_rag de chunk.py.
+    À appeler quand tu veux « remettre la base à jour » avec le code.
+    """
+    init_db()
+    conn = _get_conn()
+    try:
+        conn.execute("DELETE FROM questions")
+        conn.commit()
+        _seed_default_questions(conn)
+    finally:
+        conn.close()
+    return get_all_questions()
+
+
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(zip(row.keys(), row)) if row else {}
 
