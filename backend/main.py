@@ -130,12 +130,11 @@ async def upload_pdf(file: UploadFile = File(...)):
             chunk_embeddings.append(np.array(emb))
 
         questions_rag = db.get_all_questions()
-        # Format attendu par main_loop : list de dict avec llm, rerank, user, keyword
         questions_rag = [
             {"llm": q["llm"], "rerank": q["rerank"], "user": q["user"], "keyword": q["keyword"]}
             for q in questions_rag
         ]
-        res = chunk.main_loop(chunk_embeddings, questions_rag, chunks)
+        res, data = chunk.main_loop(chunk_embeddings, questions_rag, chunks)
 
         q_r = []
         for key, value in res.items():
@@ -144,7 +143,8 @@ async def upload_pdf(file: UploadFile = File(...)):
                 "reponse": value
             })
 
-        return q_r
+        # q_r pour affichage, data pour sauvegarde (future page Word, etc.)
+        return {"questions": q_r, "data": data}
     
     except Exception as e:
         import traceback

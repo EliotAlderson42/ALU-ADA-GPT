@@ -56,13 +56,19 @@ function Home({ setQuestions }: HomeProps) {
         throw new Error(errorData.detail || `Erreur serveur (${res.status})`);
       }
 
-      // 3️⃣ Recevoir les questions : ton backend renvoie déjà un tableau
-      const data: Question[] = await res.json();
+      // 3️⃣ Recevoir questions (affichage) et data (sauvegarde)
+      const { questions: qr, data } = (await res.json()) as {
+        questions: Question[];
+        data: unknown;
+      };
 
-      // 4️⃣ Stocker dans le state global
-      setQuestions(data);
+      // 4️⃣ Afficher q_r sur la page résultats
+      setQuestions(qr);
 
-      // 5️⃣ Naviguer vers la page résultats
+      // 5️⃣ Sauvegarder data pour une future page (Word, export, etc.)
+      sessionStorage.setItem("ragData", JSON.stringify(data));
+
+      // 6️⃣ Naviguer vers la page résultats
       navigate("/results");
     } catch (e) {
       // clearTimeout(timeoutId);

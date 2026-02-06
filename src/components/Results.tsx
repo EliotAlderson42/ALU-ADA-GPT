@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { Question } from "../App";
 
 type ResultsProps = {
@@ -8,6 +9,10 @@ function Results({ questions }: ResultsProps) {
   return (
     <section className="results">
       <h1>Résultats</h1>
+
+      <Link to="/dc1" className="results-dc1-btn">
+        Start DC1
+      </Link>
 
       {questions.length === 0 ? (
         <p>Aucune question à afficher pour le moment.</p>

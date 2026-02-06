@@ -29,8 +29,9 @@ def add_date_metadata(chunk):
 
 def add_postal_code_metadata(chunk):
     POSTAL_CODE_PATTERN = r"\b\d{2}\s?\d{3}\b"
+    DEPARTMENT_PATTERN = r"\((0[1-9]|[1-8][0-9]|9[0-5]|97[1-6]|98[4-8])\)"
 
-    if re.search(POSTAL_CODE_PATTERN, chunk["text"]):
+    if re.search(POSTAL_CODE_PATTERN, chunk["text"]) or re.search(DEPARTMENT_PATTERN, chunk["text"]):
         chunk["metadata"]["has_postal_code"] = True
 
 def add_offer_type_metadata(chunk):
@@ -51,7 +52,7 @@ def add_nature_operation_metadata(chunk):
 
 def add_master_work_metadata(chunk):
     MASTER_WORK_PATTERN = re.compile(
-        r"\b(?:maître d'ouvrage|maître|ouvrages|ouvrage)\b",
+        r"\b(?:maître d'ouvrage|maître|ouvrages|ouvrage|maître de l'ouvrage)\b",
         re.IGNORECASE
     )
     if re.search(MASTER_WORK_PATTERN, chunk["text"]):
@@ -59,11 +60,13 @@ def add_master_work_metadata(chunk):
 
 def add_mandataire_metadata(chunk):
     MANDATAIRE_PATTERN = re.compile(
-        r"\b(?:mandataire|mandataire requis)\b",
+        r"\b(?:mandataire:|mandataire)\b",
         re.IGNORECASE
     )
     if re.search(MANDATAIRE_PATTERN, chunk["text"]):
         chunk["metadata"]["has_mandataire"] = True
+        chunk["metadata"]["has_mandataire_requis"] = True
+
 
 def add_exclusivity_metadata(chunk):
     EXCLUSIVITY_PATTERN = re.compile(
@@ -136,3 +139,19 @@ def add_second_deadline_metadata(chunk):
     )
     if re.search(SECOND_DEADLINE_PATTERN, chunk["text"]):
         chunk["metadata"]["has_second_deadline"] = True
+
+def add_number_metadata(chunk):
+    NUMBER_PATTERN = re.compile(
+        r"\b(?:numéro|n°|numéro de consultation|n° de consultation)\b",
+        re.IGNORECASE
+    )
+    if re.search(NUMBER_PATTERN, chunk["text"]):
+        chunk["metadata"]["has_number"] = True
+
+def add_operation_type_metadata(chunk):
+    OPERATION_TYPE_PATTERN = re.compile(
+        r"\b(?:MARCHE|Opération)\b",
+        re.IGNORECASE
+    )
+    if re.search(OPERATION_TYPE_PATTERN, chunk["text"]):
+        chunk["metadata"]["has_operation_type"] = True

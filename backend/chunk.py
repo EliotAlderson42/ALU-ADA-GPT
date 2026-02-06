@@ -61,10 +61,16 @@ questions_rag = [
         "rerank": "Succursale ou agence territoriale la plus proche"
     },
     {
-        "llm": "Qui est le maître d’ouvrage du projet tel qu’indiqué dans le document ?",
+        "llm": "Qui est le maître d'ouvrage et quelles sont les informations que tu peux en extraire ? Si tu n'en as aucune répond juste avec le nom de maitre d'ouvrage",
         "keyword": "Ouvrage",
         "user": "Qui est le maitre d'ouvrages?",
         "rerank": "Maître d’ouvrage"
+    },
+    {
+        "llm": "Qui est le mandataire si il y en un? Extraits le numérode telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire?",
+        "keyword": "Mandataire",
+        "user": "Qui est le mandataire du projet si il y en a un?",
+        "rerank": "Mandataire du projet agissant pour le compte du maître d'ouvrage"
     },
     {
         "llm": "Quel est le type de sélection prévu (appel à candidatures ou appel d’offres) ?",
@@ -80,7 +86,7 @@ questions_rag = [
     },
     {
         "llm": "Le document précise-t-il qu’un mandataire est requis ? Si oui, quel type de mandataire est demandé ?",
-        "keyword": "Mandataire",
+        "keyword": "Mandataire-requis",
         "user": "Qui est le mandataire requis et quel est son type si il y en a un",
         "rerank": "Mandataire requis et type"
     },
@@ -175,6 +181,18 @@ questions_rag = [
         "user": "La réalisation d'un film est-elle imposée?",
         "keyword": "Film"
     },
+    {
+        "llm": "Un numéro de consultation se trouve probablment dans les extraits fournis. Extrais ce qui te semble être le numéro de consultation si rien n'y correspond répond 'Information non précisé'",
+        "rerank": "Numéro de consultation ou d'appel d'offres",
+        "user": "Quel est le numéro de consultation ou d'appel d'offres?",
+        "keyword": "Numéro"
+    },
+    {
+        "llm": "Quel est le type d'opération, sur quelle infrastructure et ou se situe l'infrastruscture en question ? Si tu ne trouves pas la réponses dans les ectraits fournis répond 'Non précisé'",
+        "rerank": "Type d'opération et infrastructure",
+        "user": "Quel est le type d'opération et sur quelle infrastructure ?",
+        "keyword": "Type d'opération"
+    },
     # {
     #     "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
     #     "rerank": "Critères d’appréciation ou d’évaluation d’une offre avec pondération ou pourcentage (prix, valeur technique, délais).",
@@ -182,17 +200,32 @@ questions_rag = [
     # }
 ]
 
+prompt_ville = """
+Tu es un extracteur strict.
+Ta tâche est d’extraire UNE entité de type VILLE.
+
+Règles ABSOLUES :
+- La réponse doit contenir exactement un seul mot ou groupe de mots.
+- Ce mot doit être UNIQUEMENT le nom de la ville (ex: "Lyon", "Saint-Denis").
+- Il est INTERDIT d’inclure un code postal, un département, une région ou un pays.
+- Il est INTERDIT d’ajouter des commentaires, phrases ou explications.
+- Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
+- Ne donne aucun contexte."""
+
 system_prompt = """
 Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marché public;
 Tu extrais uniquement des informations factuelles présentes dans le contexte fourni.
 
 Règles:
 -N'invente jamais.
+-Si il y a plusieurs questions, réponds uniquement à celles dont la réponses est fourni dans le texte fournis et ignore les autres.
 -Si l'information n'est pas renseigné dans le texte fourni répond juste: "Information non précisé"
 
 Format:
 -Réponse courte et factuelle.
 -Pas d'éxplication.
+-Ne formule pas de phrases.
+-Répond uniquement par la réponse attendu. 
 """
 
 ##Fonction pour retrier plus pointilleusement les n meilleurs chunks 
@@ -209,37 +242,23 @@ def cosine_similarity(a, b):
 
 
 def nettoyer_caracteres_repetes(text):
-    """
-    Nettoie le texte de tous les caractères qui se répètent en boucle
-    (points, espaces, virgules, tirets, etc.).
-    Préserve les mots et chiffres normaux (ex: "100", "hello").
-    """
+
     if not text or not isinstance(text, str):
         return text
-    # Espaces / tabulations multiples -> un seul espace
     text = re.sub(r"[ \t]+", " ", text)
-    # Retours à la ligne multiples -> au plus 2 (un paragraphe)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    # Points répétés -> un seul point
     text = re.sub(r"\.+", ".", text)
-    # Virgules répétées -> une seule virgule
     text = re.sub(r",+", ",", text)
-    # Point-virgules répétés
     text = re.sub(r";+", ";", text)
-    # Deux-points répétés
     text = re.sub(r":+", ":", text)
-    # Tirets / underscores répétés
     text = re.sub(r"-+", "-", text)
     text = re.sub(r"_+", "_", text)
-    # Guillemets répétés
     text = re.sub(r'"+', '"', text)
     text = re.sub(r"'+", "'", text)
-    # Parenthèses répétées (ex: ((( -> ()
     text = re.sub(r"\(+", "(", text)
     text = re.sub(r"\)+", ")", text)
-    # Retirer les espaces en début/fin de ligne
     text = re.sub(r" *\n *", "\n", text)
-    print("SALUT 2")
+    # print("SALUT 2")
     return text.strip()
 
 
@@ -265,7 +284,7 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_offer_type": False,
                 "has_nature_operation": False,
                 "has_master_work": False,
-                "has_mandataire": False,
+                "has_mandataire_requis": False,
                 "has_exclusivity": False,
                 "has_visite": False,
                 "has_competences": False,
@@ -275,6 +294,8 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_références": False,
                 "has_tranches": False,
                 "has_second_deadline": False,
+                "has_number": False,
+                "has_operation_type": False,
                 # "has_intervention": False,
             },
         }
@@ -363,6 +384,8 @@ def addMetaData(chunks):
         add_metadata.add_references_metadata(chunk)
         add_metadata.add_tranches_metadata(chunk)
         add_metadata.add_second_deadline_metadata(chunk)
+        add_metadata.add_number_metadata(chunk)
+        add_metadata.add_operation_type_metadata(chunk)
         # add_metadata.add_intervention_metadata(chunk)   
         # return chunks
 
@@ -400,16 +423,6 @@ def check_ollama_health():
     except Exception as e:
         raise Exception(f"Erreur lors de la vérification d'Ollama: {str(e)}")
 
-prompt_ville = """Tu es un extracteur strict.
-Ta tâche est d’extraire UNE entité de type VILLE.
-
-Règles ABSOLUES :
-- La réponse doit contenir exactement un seul mot ou groupe de mots.
-- Ce mot doit être UNIQUEMENT le nom de la ville (ex: "Lyon", "Saint-Denis").
-- Il est INTERDIT d’inclure un code postal, un département, une région ou un pays.
-- Il est INTERDIT d’ajouter des commentaires, phrases ou explications.
-- Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
-- Ne donne aucun contexte."""
 
 def send_playload(questions_rag, context, i, max_retries=3, timeout=120):
 
@@ -530,8 +543,8 @@ def match_metadata(keyword, chunks, embeddings):
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_nature_operation"]]
     elif keyword == "Master_work":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_master_work"]]
-    elif keyword == "Mandataire":
-        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire"]]
+    elif keyword == "Mandataire" or keyword == "Mandataire-requis":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire_requis"]]
     elif keyword == "Exclusivité":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_exclusivity"]]
     elif keyword == "Visite":
@@ -552,197 +565,54 @@ def match_metadata(keyword, chunks, embeddings):
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_intervention"]]
     elif keyword == "Seconde échéance":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_second_deadline"]]
+    elif keyword == "Numéro":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_number"]]
+    elif keyword == "Type d'opération":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_operation_type"]]
     else:
-        # Pas de filtre métadonnées : utiliser tous les chunks
         return embeddings, chunks
     candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]
     return candidats_emb, candidats
-#############################################################################################
-# Clustering K-means : phrases → embeddings → clusters → chunks thématiques
-# def chunk_text_by_clustering(
-#     text: str,
-#     target_sentences_per_chunk: int = 10,
-#     max_words_per_chunk: int = 400,
-#     embed_model: str = "nomic-embed-text",
-# ) -> list[dict]:
-#     """
-#     Découpe le texte en chunks via clustering sémantique (phrases → embeddings → K-means).
-#     Chaque chunk regroupe des phrases sémantiquement proches, réordonnées selon le document.
-#     Retourne le même format que chunk_text() pour compatibilité avec le reste du pipeline.
-#     """
-#     if not text or not text.strip():
-#         return []
-
-#     splitter = pysbd.Segmenter(language="fr", clean=False)
-#     sentences = [s.strip() for s in splitter.segment(text) if s.strip()]
-#     if not sentences:
-#         return [_chunk_from_text(text, 0)]
-
-#     n = len(sentences)
-#     if n == 1:
-#         return [_chunk_from_text(sentences[0], 0)]
-
-#     # Embeddings (une phrase = un vecteur)
-#     embeddings_list = []
-#     for sent in sentences:
-#         emb = ollama.embeddings(model=embed_model, prompt=sent)["embedding"]
-#         embeddings_list.append(emb)
-#     X = np.array(embeddings_list, dtype=np.float32)
-
-#     # K = nombre de clusters pour viser ~target_sentences_per_chunk phrases par chunk
-#     k = max(2, min(n // max(1, target_sentences_per_chunk), n))
-#     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-#     labels = kmeans.fit_predict(X)
-
-#     # Grouper les indices de phrases par cluster, triés par position dans le document
-#     cluster_to_indices = defaultdict(list)
-#     for idx, label in enumerate(labels):
-#         cluster_to_indices[label].append(idx)
-#     for label in cluster_to_indices:
-#         cluster_to_indices[label].sort()
-
-#     # Former un chunk par cluster : phrases réordonnées, puis éventuellement sous-découper si trop long
-#     chunks = []
-#     chunk_id = 0
-#     for label in sorted(cluster_to_indices.keys()):
-#         indices = cluster_to_indices[label]
-#         ordered_sentences = [sentences[i] for i in indices]
-#         chunk_text_str = " ".join(ordered_sentences)
-#         word_count = len(chunk_text_str.split())
-#         if word_count <= max_words_per_chunk:
-#             chunks.append(_chunk_from_text(chunk_text_str, chunk_id))
-#             chunk_id += 1
-#         else:
-#             # Sous-découper ce cluster en blocs de ~max_words_per_chunk
-#             words = chunk_text_str.split()
-#             start = 0
-#             while start < len(words):
-#                 end = min(start + max_words_per_chunk, len(words))
-#                 block = " ".join(words[start:end])
-#                 chunks.append(_chunk_from_text(block, chunk_id))
-#                 chunk_id += 1
-#                 start = end
-
-#     return chunks
-
-
-# def _chunk_from_text(text: str, chunk_id: int) -> dict:
-#     """Construit un chunk au format attendu par addMetaData / main_loop."""
-#     return {
-#         "text": text,
-#         "metadata": {
-#             "id": chunk_id,
-#             "has_postal_code": False,
-#             "has_price": False,
-#             "has_date": False,
-#             "language": "fr",
-#         },
-#     }
-
 
 ################################################################################################
 def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
+    data = [()]
+    epci = str()
     for i in range(len(questions_rag)):
-    # if True:
-        question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
-        addMetaData(chunks)
-        data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
-        similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
-        top_10 = np.argsort(similarities)[-10:][::-1]
-        
-        # Correction: utiliser 'idx' au lieu de 'i' pour éviter la collision de variables
-        # print(chunks[3]["text"])
-        best_chunks = []
-        for idx in top_10:
-            best_chunks.append(candidats[idx]["text"])
-        print("SALUT")
-        
-        # Correction: passer la question textuelle au rerank, pas l'embedding
-        reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:5]
-        
-        # Correction: inclure le texte des chunks dans le contexte
-        merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
-        print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
-        answer = send_playload(questions_rag, merged_context, i)
+        # if True:
+        if i == 5:
+            question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
+            addMetaData(chunks)
+            data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
+            similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
+            top_10 = np.argsort(similarities)[-10:][::-1]
+            
+            best_chunks = []
+            for idx in top_10:
+                best_chunks.append(candidats[idx]["text"])
+            # print("SALUT")
+            
+            reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:5]
+            
+            merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
+            print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
+            print(f"Questions n° {i + 1}/{len(questions_rag)}")
+            answer = send_playload(questions_rag, merged_context, i)
+            if questions_rag[i]["keyword"] == "Ouvrage":
+                id_ouvrage = answer 
 
-        if questions_rag[i]["keyword"] == "Ville":
-            travel_time(answer)
-        
-        # Correction: déplacer cette ligne DANS la boucle
-        q_r[questions_rag[i]["user"]] = answer
+            # if questions_rag[i]["keyword"] == "Ville":
+            #     epci = get_epci(answer)["nom"]
+            #     answer = epci + "\n" + answer
+            
+            if questions_rag[i]["keyword"] == "Mandataire":
+                total_id = epci + "\n" + id_ouvrage + "\n" + answer
+                data.append(("Identification de l'acheteur", total_id))
+
+            elif questions_rag[i]["keyword"] == "Type d'opération":
+                data.append(("Type d'opération", answer))
+            
+            q_r[questions_rag[i]["user"]] = answer
     
-    return q_r
-
-    # print(len(chunks))
-# def main_loop(questions_rag, text):
-#     q_r = {}
-#     chunks = chunk_text_by_clustering(text)
-#     chunks_emb = [np.array(ollama.embeddings(model="nomic-embed-text", prompt=chunk["text"])["embedding"]) for chunk in chunks]
-#     for i in range(len(questions_rag)):
-
-#         question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
-#         similarities = [cosine_similarity(question_emb, emb) for emb in chunks_emb]
-#         top_10 = np.argsort(similarities)[-10:][::-1]
-#         best_chunks = [chunks[i]["text"] for i in top_10]
-#         reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)
-#         top5real = reranked_chunks[:5]
-#         merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n{chunk}" for i, chunk in enumerate(top5real))
-#         print(merged_context)
-#         answer = send_playload(questions_rag, merged_context, i)
-#         q_r[questions_rag[i]["user"]] = answer
-#     return q_r
-# total = time.time()
-# data = {}
-# for i in range(len(questions_rag)):
-# if True:
-#     start = time.time()
-#     question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[2]["rerank"])["embedding"])
-#     similarities = [cosine_similarity(question_emb, emb) for emb in chunk_embeddings]
-#     top10_chunk = np.argsort(similarities)[-10:][::-1]
-#     best_chunks = [chunks[i] for i in top10_chunk]
-#     reranked_chunks = rerank(questions_rag[2]["rerank"], best_chunks)
-#     top5real = reranked_chunks[:5]
-#     merged_context = "\n\n".join(f"EXTRAIT{i + 1}:\n{chunk}" for i, chunk in enumerate(top5real))
-#     # context = "\n\n".join(reranked_chunks[0][0])
-#     playload = {
-#      "model": "mistral:7b-instruct",
-#         "messages": [
-#             {
-#                 "role": "system",
-#                 "content": system_prompt
-#             },
-#             {
-#                 "role": "user",
-#                 "content": f"""
-# CONTEXTE:
-# {merged_context}
-
-# QUESTION:
-# {questions_rag[2]["llm"]}
-# """
-#             }
-#         ],
-#         "stream": False
-#     }
-#     if questions_rag[2]["keyword"] == "Ville":
-#         playload["messages"][0]["content"] = prompt_ville
-#     response = requests.post(ollama_url, json=playload)
-#     response.raise_for_status()
-#     answer = response.json()["message"]["content"]
-#     print(questions_rag[2]["llm"])
-#     print("\n\n")
-#     # print(f"{merged_context}\n\n")
-#     # print("'''''''''''''''''''''''''''''")
-#     # print("-------------------------")
-#     print(answer)
-#     if questions_rag[2]["keyword"] == "Ville":
-#         print(f"EPCI de la ville/commune = {get_epci(answer)['nom']}")
-#         travel_time(answer)
-#     print(f"Question n°{2}/{len(questions_rag)} = {time.time() - start:.2f}secondes de temps de reponse")
-#     print("-------------------------")
-#     data[questions_rag[2]["keyword"]] = answer
-#     # print(len(chunks))
-
-# print(f"Toutes les questions = {(time.time() - total) / 60:.2f}minutes")
-# # travelTime(data["Ville"])
+    return q_r, data
