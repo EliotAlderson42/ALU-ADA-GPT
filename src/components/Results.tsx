@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
+import { normalizeNewlines } from "../utils";
 
 type ResultsProps = {
   questions: Question[];
@@ -22,7 +23,7 @@ function Results({ questions }: ResultsProps) {
             <li key={index} className="question-card">
               <h2>Question {index + 1}</h2>
               <p className="question-text">{q.question}</p>
-              <p className="answer-text">{q.reponse}</p>
+              <p className="answer-text">{normalizeNewlines(q.reponse)}</p>
             </li>
           ))}
         </ul>

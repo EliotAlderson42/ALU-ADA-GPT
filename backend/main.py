@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from backend.create_dc1 import create_dc1
 import tempfile
 import os
 import sys
@@ -58,6 +59,55 @@ def delete_question(question_id: int):
     return {"ok": True}
 
 
+@app.get("/members")
+def list_members():
+    """Liste tous les membres enregistrés."""
+    return db.get_all_members()
+
+
+@app.post("/members")
+def create_member(body: dict):
+    """Enregistre un membre. Body: { lotNumero?, identification?, prestations? }"""
+    lot = body.get("lotNumero", "")
+    ident = body.get("identification", "")
+    prest = body.get("prestations", "")
+    return db.add_member(lot_numero=lot, identification=ident, prestations=prest)
+
+
+@app.delete("/members/{member_id}")
+def delete_member(member_id: int):
+    """Supprime un membre par id."""
+    if not db.delete_member(member_id):
+        raise HTTPException(status_code=404, detail="Membre introuvable")
+    return {"ok": True}
+
+
+@app.get("/mandataires")
+def list_mandataires():
+    """Liste tous les mandataires enregistrés."""
+    return db.get_all_mandataires()
+
+
+@app.post("/mandataires")
+def create_mandataire(body: dict):
+    """Enregistre un mandataire. Body: champs CandidateInfo (camelCase)."""
+    return db.add_mandataire(
+        nom_commercial_denomination=body.get("nomCommercialDenomination", ""),
+        adresses_postale_siege=body.get("adressesPostaleSiege", ""),
+        adresse_electronique=body.get("adresseElectronique", ""),
+        telephone_telecopie=body.get("telephoneTelecopie", ""),
+        siret_ou_identification=body.get("siretOuIdentification", ""),
+    )
+
+
+@app.delete("/mandataires/{mandataire_id}")
+def delete_mandataire_route(mandataire_id: int):
+    """Supprime un mandataire par id."""
+    if not db.delete_mandataire(mandataire_id):
+        raise HTTPException(status_code=404, detail="Mandataire introuvable")
+    return {"ok": True}
+
+
 @app.put("/questions/{question_id}")
 def update_question(question_id: int, body: QuestionUpdate):
     """Met à jour une question (champs optionnels)."""
@@ -71,6 +121,17 @@ def update_question(question_id: int, body: QuestionUpdate):
     if updated is None:
         raise HTTPException(status_code=404, detail="Question introuvable")
     return updated
+
+
+@app.post("/dc1")
+def create_dc1_submit(body: dict):
+    """
+    Reçoit toutes les données de la page DC1 (modules A/B, C, D, E, F, G).
+    Retourne les données reçues pour confirmation ; le backend peut ensuite
+    générer un document (Word, etc.) ou les stocker.
+    """
+    create_dc1(body)
+    return {"ok": True, "data": body}
 
 
 @app.post("/questions/sync-from-default")

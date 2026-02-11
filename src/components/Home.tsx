@@ -65,8 +65,9 @@ function Home({ setQuestions }: HomeProps) {
       // 4️⃣ Afficher q_r sur la page résultats
       setQuestions(qr);
 
-      // 5️⃣ Sauvegarder data pour une future page (Word, export, etc.)
+      // 5️⃣ Sauvegarder data et questions pour DC1 / autres pages
       sessionStorage.setItem("ragData", JSON.stringify(data));
+      sessionStorage.setItem("ragQuestions", JSON.stringify(qr));
 
       // 6️⃣ Naviguer vers la page résultats
       navigate("/results");

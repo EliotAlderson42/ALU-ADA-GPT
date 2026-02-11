@@ -30,6 +30,26 @@ def init_db() -> None:
                 order_index INTEGER NOT NULL DEFAULT 0
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lot_numero TEXT,
+                identification TEXT,
+                prestations TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mandataires (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nom_commercial_denomination TEXT,
+                adresses_postale_siege TEXT,
+                adresse_electronique TEXT,
+                telephone_telecopie TEXT,
+                siret_ou_identification TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
         conn.commit()
         cur = conn.execute("SELECT COUNT(*) FROM questions")
         if cur.fetchone()[0] == 0:
@@ -114,6 +134,147 @@ def delete_question(question_id: int) -> bool:
     conn = _get_conn()
     try:
         cur = conn.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_all_members() -> list[dict[str, Any]]:
+    """Retourne tous les membres enregistrés individuellement."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "SELECT id, lot_numero, identification, prestations, created_at FROM members ORDER BY created_at ASC"
+        )
+        return [
+            {
+                "id": r["id"],
+                "lotNumero": r["lot_numero"] or "",
+                "identification": r["identification"] or "",
+                "prestations": r["prestations"] or "",
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def add_member(lot_numero: str, identification: str, prestations: str) -> dict[str, Any]:
+    """Enregistre un membre individuellement."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO members (lot_numero, identification, prestations) VALUES (?, ?, ?)",
+            (lot_numero or "", identification or "", prestations or ""),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, lot_numero, identification, prestations, created_at FROM members WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+        return {
+            "id": row["id"],
+            "lotNumero": row["lot_numero"] or "",
+            "identification": row["identification"] or "",
+            "prestations": row["prestations"] or "",
+            "created_at": row["created_at"],
+        }
+    finally:
+        conn.close()
+
+
+def delete_member(member_id: int) -> bool:
+    """Supprime un membre."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute("DELETE FROM members WHERE id = ?", (member_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_all_mandataires() -> list[dict[str, Any]]:
+    """Retourne tous les mandataires enregistrés."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            """SELECT id, nom_commercial_denomination, adresses_postale_siege,
+               adresse_electronique, telephone_telecopie, siret_ou_identification, created_at
+               FROM mandataires ORDER BY created_at ASC"""
+        )
+        return [
+            {
+                "id": r["id"],
+                "nomCommercialDenomination": r["nom_commercial_denomination"] or "",
+                "adressesPostaleSiege": r["adresses_postale_siege"] or "",
+                "adresseElectronique": r["adresse_electronique"] or "",
+                "telephoneTelecopie": r["telephone_telecopie"] or "",
+                "siretOuIdentification": r["siret_ou_identification"] or "",
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def add_mandataire(
+    nom_commercial_denomination: str,
+    adresses_postale_siege: str,
+    adresse_electronique: str,
+    telephone_telecopie: str,
+    siret_ou_identification: str,
+) -> dict[str, Any]:
+    """Enregistre un mandataire."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            """INSERT INTO mandataires
+               (nom_commercial_denomination, adresses_postale_siege, adresse_electronique,
+                telephone_telecopie, siret_ou_identification)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                nom_commercial_denomination or "",
+                adresses_postale_siege or "",
+                adresse_electronique or "",
+                telephone_telecopie or "",
+                siret_ou_identification or "",
+            ),
+        )
+        conn.commit()
+        row = conn.execute(
+            """SELECT id, nom_commercial_denomination, adresses_postale_siege,
+               adresse_electronique, telephone_telecopie, siret_ou_identification, created_at
+               FROM mandataires WHERE id = ?""",
+            (cur.lastrowid,),
+        ).fetchone()
+        return {
+            "id": row["id"],
+            "nomCommercialDenomination": row["nom_commercial_denomination"] or "",
+            "adressesPostaleSiege": row["adresses_postale_siege"] or "",
+            "adresseElectronique": row["adresse_electronique"] or "",
+            "telephoneTelecopie": row["telephone_telecopie"] or "",
+            "siretOuIdentification": row["siret_ou_identification"] or "",
+            "created_at": row["created_at"],
+        }
+    finally:
+        conn.close()
+
+
+def delete_mandataire(mandataire_id: int) -> bool:
+    """Supprime un mandataire."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute("DELETE FROM mandataires WHERE id = ?", (mandataire_id,))
         conn.commit()
         return cur.rowcount > 0
     finally:

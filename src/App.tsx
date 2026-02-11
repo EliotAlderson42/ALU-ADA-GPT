@@ -31,7 +31,7 @@ function App() {
             <Route path="/questions" element={<Questions />} />
 
             {/* DC1 : modifier les 5 derniers éléments de data */}
-            <Route path="/dc1" element={<Dc1 />} />
+            <Route path="/dc1" element={<Dc1 questions={questions} />} />
           </Routes>
         </main>
 

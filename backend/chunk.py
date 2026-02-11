@@ -67,7 +67,7 @@ questions_rag = [
         "rerank": "Maître d’ouvrage"
     },
     {
-        "llm": "Qui est le mandataire si il y en un? Extraits le numérode telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire?",
+        "llm": "Qui est le mandataire si il y en un? Extraits le numérode telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire dans ce format'Nom de la commune avec EPCI si possible - Tél: numero de telephone - Représentant de l'acheteur: Nom du representant si il yen a un, site de l'acheteur: site - Adresse mail de l'acheteur: mail' et n'ajoute rien d'autres que ces infos",
         "keyword": "Mandataire",
         "user": "Qui est le mandataire du projet si il y en a un?",
         "rerank": "Mandataire du projet agissant pour le compte du maître d'ouvrage"
@@ -579,9 +579,11 @@ def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
     epci = str()
+    header = chunks[0]["text"] + "\n\n" + chunks[1]["text"]
     for i in range(len(questions_rag)):
         # if True:
-        if i == 5:
+        if i == 11:
+            
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             addMetaData(chunks)
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
@@ -594,8 +596,10 @@ def main_loop(embeddings, questions_rag, chunks):
             # print("SALUT")
             
             reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:5]
-            
-            merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
+            if questions_rag[i]["keyword"] == "Mandataire":
+                merged_context = header
+            else:
+                merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
             print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
             print(f"Questions n° {i + 1}/{len(questions_rag)}")
             answer = send_playload(questions_rag, merged_context, i)
@@ -607,11 +611,14 @@ def main_loop(embeddings, questions_rag, chunks):
             #     answer = epci + "\n" + answer
             
             if questions_rag[i]["keyword"] == "Mandataire":
-                total_id = epci + "\n" + id_ouvrage + "\n" + answer
-                data.append(("Identification de l'acheteur", total_id))
+                # total_id = epci + "\n" + id_ouvrage + "\n" + answer
+                data.append(("Identification de l'acheteur", answer))
 
             elif questions_rag[i]["keyword"] == "Type d'opération":
+                etat = [False, False, 0]
                 data.append(("Type d'opération", answer))
+                # data.append(("Objet de la candidature", etat))
+                # data.append(("Présentation du candidat", ""))
             
             q_r[questions_rag[i]["user"]] = answer
     
