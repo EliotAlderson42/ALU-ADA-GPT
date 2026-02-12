@@ -59,12 +59,16 @@ def add_master_work_metadata(chunk):
         chunk["metadata"]["has_master_work"] = True
 
 def add_mandataire_metadata(chunk):
-    MANDATAIRE_PATTERN = re.compile(
-        r"\b(?:mandataire:|mandataire)\b",
+    if re.search('@', chunk["text"]):
+        chunk["metadata"]["has_mandataire"] = True
+        print(f"TEXTE == {chunk['text']}\n")
+
+def add_mandataire_requis_metadata(chunk):
+    MANDATAIRE_REQUIS_PATTERN = re.compile(
+        r"\b(?:mandataire requis)\b",
         re.IGNORECASE
     )
-    if re.search(MANDATAIRE_PATTERN, chunk["text"]):
-        chunk["metadata"]["has_mandataire"] = True
+    if re.search(MANDATAIRE_REQUIS_PATTERN, chunk["text"]):
         chunk["metadata"]["has_mandataire_requis"] = True
 
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
-import { normalizeNewlines } from "../utils";
+import { normalizeNewlines, sanitizeKey } from "../utils";
 
 type DataItem = { keyword: string; answer: string };
 
@@ -238,31 +238,57 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
 
   const getDc1Payload = () => {
     const toKeyValue = (item: DataItem | undefined) => {
-      const kw = normalizeNewlines(item?.keyword ?? "");
+      const kwRaw = normalizeNewlines(item?.keyword ?? "").trim();
+      const kw = sanitizeKey(kwRaw);
       const ans = normalizeNewlines(item?.answer ?? "");
       return kw ? { [kw]: ans } : {};
+    };
+    const box = (checked: boolean) => (checked ? "☑" : "☐");
+    const numberGroupementRows = () => {
+      const out: Record<string, string> = {};
+      groupementRows.forEach((row, idx) => {
+        const n = idx + 1;
+        out[`lotNumero_${n}`] = row.lotNumero ?? "";
+        // clé demandée : "identifications" (avec s)
+        out[`identifications_${n}`] = row.identification ?? "";
+        out[`prestations_${n}`] = row.prestations ?? "";
+      });
+      return out;
     };
     return {
     moduleA: toKeyValue(items[0]),
     moduleB: toKeyValue(items[1]),
     moduleC: {
-      objetCandidature,
+      objetCandidature: {
+        non_allotissement: box(objetCandidature === "non_allotissement"),
+        tous_lots: box(objetCandidature === "tous_lots"),
+        lots_determines: box(objetCandidature === "lots_determines"),
+      },
       lotNumero,
       intituleLots,
     },
     moduleD: {
-      presentationType,
-      groupementType,
-      mandataireSolidaire,
+      presentation: {
+        seul: box(presentationType === "seul"),
+        groupement: box(presentationType === "groupement"),
+      },
+      groupementType: {
+        conjoint: box(groupementType === "conjoint"),
+        solidaire: box(groupementType === "solidaire"),
+      },
+      mandataireSolidaire: {
+        non: box(mandataireSolidaire === "non"),
+        oui: box(mandataireSolidaire === "oui"),
+      },
       candidate,
     },
-    moduleE: { groupementRows },
+    moduleE: numberGroupementRows(),
     moduleF: {
-      f1ExclusionChecked,
+      f1ExclusionChecked: box(f1ExclusionChecked),
       f2AdresseInternet,
       f2RenseignementsAcces,
-      f3FormulaireDC2,
-      f3DocumentsCapacites,
+      f3FormulaireDC2: box(f3FormulaireDC2),
+      f3DocumentsCapacites: box(f3DocumentsCapacites),
     },
     moduleG: { mandataire },
   };

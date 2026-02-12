@@ -13,7 +13,7 @@ from collections import defaultdict
 
 questions_rag = [
     {
-        "llm": "Quel est le type d'infrastructure décrit dans le document (exemple : école, gymnase, équipement culturel, bâtiment administratif) ?",
+        "llm": "Qu'est-ce qui est prévue pour ce projet?",
         "rerank": "Type de projet (école, gymnase, équipement culturel, bâtiment administratif)",
         "user": "Quel est le type d'infrastructure ?",
         "keyword": "Type"
@@ -67,7 +67,7 @@ questions_rag = [
         "rerank": "Maître d’ouvrage"
     },
     {
-        "llm": "Qui est le mandataire si il y en un? Extraits le numérode telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire dans ce format'Nom de la commune avec EPCI si possible - Tél: numero de telephone - Représentant de l'acheteur: Nom du representant si il yen a un, site de l'acheteur: site - Adresse mail de l'acheteur: mail' et n'ajoute rien d'autres que ces infos",
+        "llm": "Extraits le numéro de telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire dans ce format'Nom de la commune avec EPCI si possible - Tél: numero de telephone - Représentant de l'acheteur: Nom du representant, site de l'acheteur: site - Adresse mail de l'acheteur: mail' et n'ajoute rien d'autres que ces infos",
         "keyword": "Mandataire",
         "user": "Qui est le mandataire du projet si il y en a un?",
         "rerank": "Mandataire du projet agissant pour le compte du maître d'ouvrage"
@@ -212,6 +212,17 @@ Règles ABSOLUES :
 - Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
 - Ne donne aucun contexte."""
 
+prompt_mandataire = """
+Tu es un extracteur d’informations.
+
+Tu dois toujours répondre uniquement avec un JSON valide.
+Aucun texte en dehors du JSON.
+
+Si une donnée est absente ou incertaine, mets null.
+Ne devine jamais.
+
+"""
+
 system_prompt = """
 Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marché public;
 Tu extrais uniquement des informations factuelles présentes dans le contexte fourni.
@@ -284,6 +295,7 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_offer_type": False,
                 "has_nature_operation": False,
                 "has_master_work": False,
+                "has_mandataire": False,
                 "has_mandataire_requis": False,
                 "has_exclusivity": False,
                 "has_visite": False,
@@ -386,6 +398,7 @@ def addMetaData(chunks):
         add_metadata.add_second_deadline_metadata(chunk)
         add_metadata.add_number_metadata(chunk)
         add_metadata.add_operation_type_metadata(chunk)
+        add_metadata.add_mandataire_requis_metadata(chunk)
         # add_metadata.add_intervention_metadata(chunk)   
         # return chunks
 
@@ -424,7 +437,7 @@ def check_ollama_health():
         raise Exception(f"Erreur lors de la vérification d'Ollama: {str(e)}")
 
 
-def send_playload(questions_rag, context, i, max_retries=3, timeout=120):
+def send_playload(questions_rag, context, i, prompt, max_retries=3, timeout=120):
 
     playload = {
         "model": "mistral:7b-instruct",
@@ -444,7 +457,13 @@ QUESTION:
 """
             }
         ],
-        "stream": False       
+        "stream": False, 
+        "options": {
+            "temperature": 1,
+            "top_p": 0.8,
+            "num_ctx": 8192,
+            "repeat_penalty": 1.1,
+        }     
     }
     if questions_rag[i]["keyword"] == "Ville":
         playload["messages"][0]["content"] = prompt_ville
@@ -530,7 +549,7 @@ QUESTION:
 def match_metadata(keyword, chunks, embeddings):
     candidats = []
     candidats_emb = []
-    addMetaData(chunks)
+    # addMetaData(chunks)
     if keyword in ("limite1", "Limite2", "limite2", "questions"):
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_date"]]
     elif keyword == "Travaux":
@@ -543,7 +562,9 @@ def match_metadata(keyword, chunks, embeddings):
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_nature_operation"]]
     elif keyword == "Master_work":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_master_work"]]
-    elif keyword == "Mandataire" or keyword == "Mandataire-requis":
+    elif keyword == "Mandataire":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire"]]
+    elif keyword == "Mandataire-requis":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire_requis"]]
     elif keyword == "Exclusivité":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_exclusivity"]]
@@ -580,12 +601,13 @@ def main_loop(embeddings, questions_rag, chunks):
     data = [()]
     epci = str()
     header = chunks[0]["text"] + "\n\n" + chunks[1]["text"]
+    addMetaData(chunks)
+    prompt = system_prompt
     for i in range(len(questions_rag)):
         # if True:
-        if i == 11:
+        # if i == 0:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
-            addMetaData(chunks)
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
             similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
             top_10 = np.argsort(similarities)[-10:][::-1]
@@ -595,14 +617,19 @@ def main_loop(embeddings, questions_rag, chunks):
                 best_chunks.append(candidats[idx]["text"])
             # print("SALUT")
             
-            reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:5]
-            if questions_rag[i]["keyword"] == "Mandataire":
-                merged_context = header
+            reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:3]
+            # if questions_rag[i]["keyword"] == "Mandataire":
+            #     merged_context = header
+            # else:
+            merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
+            if questions_rag[i]["keyword"] == "Mandataire" or questions_rag[i]["keyword"] == "Type":
+                prompt = prompt_mandataire
+                merged_context += "\n\n" + header
             else:
-                merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
+                prompt = system_prompt
             print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
             print(f"Questions n° {i + 1}/{len(questions_rag)}")
-            answer = send_playload(questions_rag, merged_context, i)
+            answer = send_playload(questions_rag, merged_context, i, prompt)
             if questions_rag[i]["keyword"] == "Ouvrage":
                 id_ouvrage = answer 
 
@@ -612,11 +639,11 @@ def main_loop(embeddings, questions_rag, chunks):
             
             if questions_rag[i]["keyword"] == "Mandataire":
                 # total_id = epci + "\n" + id_ouvrage + "\n" + answer
-                data.append(("Identification de l'acheteur", answer))
+                data.append(("acheteurId", answer))
 
             elif questions_rag[i]["keyword"] == "Type d'opération":
                 etat = [False, False, 0]
-                data.append(("Type d'opération", answer))
+                data.append(("operationType", answer))
                 # data.append(("Objet de la candidature", etat))
                 # data.append(("Présentation du candidat", ""))
             

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.create_dc1 import create_dc1
+from backend.create_dc1 import create_dc1, fill_dc1
 import tempfile
 import os
 import sys
@@ -130,7 +130,8 @@ def create_dc1_submit(body: dict):
     Retourne les données reçues pour confirmation ; le backend peut ensuite
     générer un document (Word, etc.) ou les stocker.
     """
-    create_dc1(body)
+    data = create_dc1(body)
+    fill_dc1(data)
     return {"ok": True, "data": body}
 
 
