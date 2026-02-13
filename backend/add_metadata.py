@@ -74,7 +74,7 @@ def add_mandataire_requis_metadata(chunk):
 
 def add_exclusivity_metadata(chunk):
     EXCLUSIVITY_PATTERN = re.compile(
-        r"\b(?:exclusivité|bureaux d'études)\b",
+        r"\b(?:exclusivité|bureaux d'études|bureaux|exclusif)\b",
         re.IGNORECASE
     )
     if re.search(EXCLUSIVITY_PATTERN, chunk["text"]):
@@ -159,3 +159,7 @@ def add_operation_type_metadata(chunk):
     )
     if re.search(OPERATION_TYPE_PATTERN, chunk["text"]):
         chunk["metadata"]["has_operation_type"] = True
+
+def add_keyword_metadata(chunk, keyword):
+    if keyword in chunk["text"]:
+        chunk["metadata"]["has_keyword"] = True

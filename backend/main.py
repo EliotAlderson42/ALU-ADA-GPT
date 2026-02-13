@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.create_dc1 import create_dc1, fill_dc1
 import tempfile
@@ -25,6 +26,17 @@ class QuestionUpdate(BaseModel):
     rerank: str | None = None
     user: str | None = None
     keyword: str | None = None
+
+
+class AskBody(BaseModel):
+    question: str
+    keyword: str = ""
+    rerank: str = ""
+
+
+# Dernier PDF traité : embeddings et chunks pour les questions supplémentaires (page Réponses)
+_last_upload_embeddings = None
+_last_upload_chunks = None
 
 
 @app.on_event("startup")
@@ -108,6 +120,30 @@ def delete_mandataire_route(mandataire_id: int):
     return {"ok": True}
 
 
+@app.get("/dc2/operateurs")
+def list_dc2_operateurs():
+    """Liste tous les opérateurs enregistrés (Module H DC2)."""
+    return db.get_all_dc2_operateurs()
+
+
+@app.post("/dc2/operateurs")
+def create_dc2_operateur(body: dict):
+    """Enregistre un opérateur. Body: { lotNumero?, nomMembreGroupement?, identification? }"""
+    return db.add_dc2_operateur(
+        lot_numero=body.get("lotNumero", ""),
+        nom_membre_groupement=body.get("nomMembreGroupement", ""),
+        identification=body.get("identification", ""),
+    )
+
+
+@app.delete("/dc2/operateurs/{operateur_id}")
+def delete_dc2_operateur_route(operateur_id: int):
+    """Supprime un opérateur par id."""
+    if not db.delete_dc2_operateur(operateur_id):
+        raise HTTPException(status_code=404, detail="Opérateur introuvable")
+    return {"ok": True}
+
+
 @app.put("/questions/{question_id}")
 def update_question(question_id: int, body: QuestionUpdate):
     """Met à jour une question (champs optionnels)."""
@@ -133,6 +169,43 @@ def create_dc1_submit(body: dict):
     data = create_dc1(body)
     fill_dc1(data)
     return {"ok": True, "data": body}
+
+
+@app.get("/dc1/download")
+def download_dc1():
+    """Télécharge le document DC1 généré (dc1.docx)."""
+    path = os.path.join(os.path.dirname(__file__), "output", "dc1.docx")
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Document DC1 non trouvé. Créez-le d'abord via « Créer DC1 ».")
+    return FileResponse(path, filename="dc1.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@app.post("/ask")
+def ask_supplementary(body: AskBody):
+    """
+    Pose une question au LLM concernant le dernier PDF uploadé.
+    Appelle chunk.add_question(question, keyword, rerank, embeddings, chunks).
+    Utilisé par la fenêtre chat de la page Réponses.
+    """
+    global _last_upload_embeddings, _last_upload_chunks
+    if _last_upload_embeddings is None or _last_upload_chunks is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Aucun PDF n'a encore été analysé. Uploadez un PDF depuis la page d'accueil puis revenez sur les résultats.",
+        )
+    question = (body.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="La question ne peut pas être vide.")
+    keyword = (body.keyword or "").strip() or "_supplement_"
+    rerank_q = (body.rerank or "").strip() or question
+    try:
+        answer = chunk.add_question(question, keyword, rerank_q, _last_upload_embeddings, _last_upload_chunks)
+        return {"reponse": answer}
+    except Exception as e:
+        import traceback
+        print("[BACKEND] Erreur /ask:", repr(e), flush=True)
+        print(traceback.format_exc(), flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/questions/sync-from-default")
@@ -204,6 +277,11 @@ async def upload_pdf(file: UploadFile = File(...)):
                 "question": key,
                 "reponse": value
             })
+
+        # Stocker pour les questions supplémentaires sur la page Réponses
+        global _last_upload_embeddings, _last_upload_chunks
+        _last_upload_embeddings = chunk_embeddings
+        _last_upload_chunks = chunks
 
         # q_r pour affichage, data pour sauvegarde (future page Word, etc.)
         return {"questions": q_r, "data": data}

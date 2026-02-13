@@ -15,7 +15,7 @@ function Questions() {
   const [questions, setQuestions] = useState<QuestionRag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ llm: "", rerank: "", user: "", keyword: "" });
+  const [form, setForm] = useState({ user: "", llm: "", rerank: "", keyword: "" });
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -40,17 +40,23 @@ function Questions() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.llm.trim() || !form.rerank.trim() || !form.user.trim() || !form.keyword.trim()) {
-      setError("Tous les champs sont requis.");
+    if (!form.user.trim() || !form.llm.trim() || !form.rerank.trim() || !form.keyword.trim()) {
+      setError("Les quatre champs sont requis.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
+      const body = {
+        user: form.user.trim(),
+        llm: form.llm.trim(),
+        rerank: form.rerank.trim(),
+        keyword: form.keyword.trim(),
+      };
       const res = await fetch(`${API_BASE}/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -58,7 +64,7 @@ function Questions() {
       }
       const created = await res.json();
       setQuestions((prev) => [...prev, created]);
-      setForm({ llm: "", rerank: "", user: "", keyword: "" });
+      setForm({ user: "", llm: "", rerank: "", keyword: "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {

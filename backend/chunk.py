@@ -170,13 +170,13 @@ questions_rag = [
         "keyword": "Prime"
     },
     {
-        "llm": "Le document impose-t-il la réalisation d’une maquette (numérique ou physique) dans le cadre de la candidature ou de l’offre ?",
+        "llm": "Le document impose-t-il la réalisation d’une maquette (numérique ou physique) dans le cadre de la candidature ou de l’offre ?Si aucune information n'est fourni à ce sujet réponds seulement'Non précisé'",
         "rerank": "Maquette requise (oui/non)",
         "user": "La réalisation d'une maquette est elle imposé?",
         "keyword": "Maquette"
     },
     {
-        "llm": "La réalisation d’un film de présentation est-elle exigée dans le cadre de la procédure ?",
+        "llm": "La réalisation d’un film de présentation est-elle exigée dans le cadre de la procédure ? Si aucune information n'est fourni à ce sujet réponds seulement'Non précisé'",
         "rerank": "Film requis (oui/non)",
         "user": "La réalisation d'un film est-elle imposée?",
         "keyword": "Film"
@@ -308,6 +308,7 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_second_deadline": False,
                 "has_number": False,
                 "has_operation_type": False,
+                "has_keyword": False,
                 # "has_intervention": False,
             },
         }
@@ -378,7 +379,7 @@ def pdfReader(file):
                 text += page_text + "\n"
     return nettoyer_caracteres_repetes(text)
 
-def addMetaData(chunks):
+def addMetaData(chunks, keyword):
     for chunk in chunks:
         add_metadata.add_price_metadata(chunk)
         add_metadata.add_date_metadata(chunk)
@@ -399,6 +400,8 @@ def addMetaData(chunks):
         add_metadata.add_number_metadata(chunk)
         add_metadata.add_operation_type_metadata(chunk)
         add_metadata.add_mandataire_requis_metadata(chunk)
+        if keyword != None:
+            add_metadata.add_keyword_metadata(chunk, keyword)
         # add_metadata.add_intervention_metadata(chunk)   
         # return chunks
 
@@ -544,7 +547,79 @@ QUESTION:
                 raise Exception(f"Erreur lors de l'appel à Ollama après {max_retries} tentatives: {last_error}")
     
     # Ne devrait jamais arriver ici, mais au cas où
-    raise Exception(f"Échec après {max_retries} tentatives: {last_error}") 
+    raise Exception(f"Échec après {max_retries} tentatives: {last_error}")
+
+
+def send_single_question(question, context, prompt=None, max_retries=3, timeout=120):
+    """Envoie une seule question au LLM avec le contexte donné (pour question supplémentaire)."""
+    if prompt is None:
+        prompt = system_prompt
+    payload = {
+        "model": "mistral:7b-instruct",
+        "messages": [
+            {"role": "system", "content": prompt},
+            {
+                "role": "user",
+                "content": f"""CONTEXTE:
+{context}
+
+QUESTION:
+{question}
+""",
+            },
+        ],
+        "stream": False,
+        "options": {"temperature": 1, "top_p": 0.8, "num_ctx": 8192, "repeat_penalty": 1.1},
+    }
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
+            response.raise_for_status()
+            result = response.json()
+            if "message" not in result or "content" not in result["message"]:
+                raise ValueError(f"Réponse Ollama invalide: {result}")
+            return result["message"]["content"]
+        except requests.exceptions.Timeout:
+            last_error = f"Timeout après {timeout}s (tentative {attempt + 1}/{max_retries})"
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            raise Exception(f"Timeout Ollama après {max_retries} tentatives: {last_error}")
+        except requests.exceptions.ConnectionError:
+            last_error = f"Impossible de se connecter à Ollama (tentative {attempt + 1}/{max_retries})"
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            raise Exception(f"Ollama n'est pas accessible: {last_error}")
+        except Exception as e:
+            last_error = str(e)
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            raise
+    raise Exception(f"Échec après {max_retries} tentatives: {last_error}")
+
+
+def ask_supplementary_question(question, embeddings, chunks):
+    """
+    Pose une question supplémentaire sur le PDF : recherche sémantique sur tous les chunks,
+    rerank, puis envoi au LLM. Utilisé par la page Réponses.
+    """
+    addMetaData(chunks, None)
+    # Utiliser un keyword inconnu pour récupérer tous les chunks (branche else de match_metadata)
+    data_embed, candidats = match_metadata("_supplement_", chunks, embeddings)
+    if not candidats:
+        return "Aucun extrait disponible pour répondre."
+    question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=question)["embedding"])
+    similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
+    top_10 = np.argsort(similarities)[-10:][::-1]
+    best_chunks = [candidats[idx]["text"] for idx in top_10]
+    reranked = rerank(question, best_chunks)[:3]
+    chunk_texts = [c for c, _ in reranked]
+    merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{t}" for j, t in enumerate(chunk_texts))
+    return send_single_question(question, merged_context)
+
 
 def match_metadata(keyword, chunks, embeddings):
     candidats = []
@@ -595,13 +670,29 @@ def match_metadata(keyword, chunks, embeddings):
     candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]
     return candidats_emb, candidats
 
+
+def add_question(question, keyword, rerank_query, embeddings, chunks):
+    question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=rerank_query)["embedding"])
+    addMetaData(chunks, None)
+    data_embed, candidats = match_metadata(keyword, chunks, embeddings)
+    if not candidats:
+        return "Aucun extrait trouvé pour ce mot-clé."
+    similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
+    top_10 = np.argsort(similarities)[-10:][::-1]
+    best_chunks = [candidats[idx]["text"] for idx in top_10]
+    reranked = rerank(rerank_query, best_chunks)[:3]
+    chunk_texts = [c for c, _ in reranked]
+    merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{t}" for j, t in enumerate(chunk_texts))
+    print(f"QUESTION = {question}\n\nmerged_context = {merged_context}", flush=True)
+    answer = send_single_question(question, merged_context)
+    return answer
 ################################################################################################
 def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
     epci = str()
     header = chunks[0]["text"] + "\n\n" + chunks[1]["text"]
-    addMetaData(chunks)
+    addMetaData(chunks, None)
     prompt = system_prompt
     for i in range(len(questions_rag)):
         # if True:

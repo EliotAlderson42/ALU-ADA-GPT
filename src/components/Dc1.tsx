@@ -1,7 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
 import { normalizeNewlines, sanitizeKey } from "../utils";
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  question?: string;
+  keyword?: string;
+  rerank?: string;
+  content: string;
+};
 
 type DataItem = { keyword: string; answer: string };
 
@@ -33,6 +42,14 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
   const [creating, setCreating] = useState(false);
   const [createDone, setCreateDone] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatKeyword, setChatKeyword] = useState("");
+  const [chatRerank, setChatRerank] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const [candidate, setCandidate] = useState<CandidateInfo>({
     nomCommercialDenomination: "",
     adressesPostaleSiege: "",
@@ -360,6 +377,25 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
     }
   };
 
+  const handleDownloadDc1 = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/dc1/download`);
+      if (!res.ok) {
+        alert("Document non trouvé. Créez-le d'abord via « Créer DC1 ».");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dc1.docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Impossible de télécharger le document.");
+    }
+  };
+
   const addGroupementRow = () => {
     setGroupementRows((prev) => [...prev, { lotNumero: "", identification: "", prestations: "" }]);
     setSaved(false);
@@ -446,6 +482,55 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
       }
     } catch {
       // ignore
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  const handleChatSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = chatQuestion.trim();
+    if (!q) return;
+    setChatLoading(true);
+    setChatError(null);
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      question: q,
+      keyword: chatKeyword.trim() || undefined,
+      rerank: chatRerank.trim() || undefined,
+      content: q,
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatQuestion("");
+    setChatKeyword("");
+    setChatRerank("");
+    try {
+      const res = await fetch(`${API_BASE}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: q,
+          keyword: chatKeyword.trim() || undefined,
+          rerank: chatRerank.trim() || q,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || "Erreur lors de l'envoi");
+      }
+      const assistantMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        content: data.reponse ?? "",
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -1178,6 +1263,17 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
                   : `Créer DC1${saved ? "" : " *"}`
               }
             </button>
+            <button
+              type="button"
+              className="dc1-download"
+              onClick={handleDownloadDc1}
+              title="Télécharger le document DC1"
+            >
+              Télécharger DC1
+            </button>
+            <Link to="/dc2" className="dc1-dc2-btn">
+              Formulaire DC2 →
+            </Link>
             <Link to="/results" className="dc1-back">
               ← Retour aux résultats
             </Link>
@@ -1202,6 +1298,106 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
           </aside>
         )}
       </div>
+
+      {/* Bouton Chat PDF */}
+      <button
+        type="button"
+        className="results-chat-fab"
+        onClick={() => setChatOpen(true)}
+        aria-label="Ouvrir le chat PDF"
+        title="Chat PDF — question supplémentaire"
+      >
+        <span className="results-chat-fab-icon" aria-hidden>💬</span>
+        <span className="results-chat-fab-label">Chat PDF</span>
+      </button>
+
+      {chatOpen && (
+        <div className="results-chat-overlay results-chat-overlay--side" aria-modal="true" role="dialog" aria-labelledby="dc1-chat-title">
+          <div className="results-chat-backdrop" onClick={() => setChatOpen(false)} />
+          <div className="results-chat-window results-chat-window--side">
+            <div className="results-chat-header">
+              <h2 id="dc1-chat-title" className="results-chat-title">Chat PDF</h2>
+              <button
+                type="button"
+                className="results-chat-close"
+                onClick={() => setChatOpen(false)}
+                aria-label="Fermer"
+              >
+                ×
+              </button>
+            </div>
+            <p className="results-chat-desc">
+              Question LLM + <strong>keyword</strong> + <strong>rerank</strong> → réponse sur le dernier PDF analysé.
+            </p>
+            <div className="results-chat-messages" role="log" aria-live="polite">
+              {chatMessages.length === 0 && (
+                <p className="results-chat-empty">Aucun message. Pose une question ci-dessous.</p>
+              )}
+              {chatMessages.map((m) => (
+                <div key={m.id} className={`results-chat-bubble results-chat-bubble--${m.role}`}>
+                  {m.role === "user" && (m.keyword || m.rerank) && (
+                    <div className="results-chat-meta">
+                      {m.keyword && <span className="results-chat-tag">keyword: {m.keyword}</span>}
+                      {m.rerank && <span className="results-chat-tag">rerank: {m.rerank}</span>}
+                    </div>
+                  )}
+                  <p className="results-chat-content">{m.content ? normalizeNewlines(m.content) : "…"}</p>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="results-chat-bubble results-chat-bubble--assistant">
+                  <p className="results-chat-content results-chat-loading">Réponse en cours…</p>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <form onSubmit={handleChatSend} className="results-chat-form">
+              <div className="results-chat-fields">
+                <label>
+                  Question LLM *
+                  <input
+                    type="text"
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    placeholder="Question pour le modèle"
+                    disabled={chatLoading}
+                  />
+                </label>
+                <label>
+                  Keyword
+                  <input
+                    type="text"
+                    value={chatKeyword}
+                    onChange={(e) => setChatKeyword(e.target.value)}
+                    placeholder="Ex: Travaux, Type"
+                    disabled={chatLoading}
+                  />
+                </label>
+                <label>
+                  Rerank
+                  <input
+                    type="text"
+                    value={chatRerank}
+                    onChange={(e) => setChatRerank(e.target.value)}
+                    placeholder="Ex: Montant prévisionnel"
+                    disabled={chatLoading}
+                  />
+                </label>
+              </div>
+              <div className="results-chat-actions">
+                <button type="submit" disabled={chatLoading || !chatQuestion.trim()}>
+                  {chatLoading ? "Envoi…" : "Envoyer"}
+                </button>
+              </div>
+            </form>
+            {chatError && (
+              <p className="results-chat-error" role="alert">
+                {chatError}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

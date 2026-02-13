@@ -6,6 +6,7 @@ import Home from "./components/Home";
 import Results from "./components/Results";
 import Questions from "./components/Questions";
 import Dc1 from "./components/Dc1";
+import Dc2 from "./components/Dc2";
 
 // Type partagé pour les questions/réponses
 export type Question = { question: string; reponse: string };
@@ -32,6 +33,9 @@ function App() {
 
             {/* DC1 : modifier les 5 derniers éléments de data */}
             <Route path="/dc1" element={<Dc1 questions={questions} />} />
+
+            {/* DC2 : formulaire */}
+            <Route path="/dc2" element={<Dc2 />} />
           </Routes>
         </main>
 

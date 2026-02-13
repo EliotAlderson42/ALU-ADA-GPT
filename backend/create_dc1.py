@@ -64,9 +64,13 @@ def create_dc1(body = dict):
     return data
 
 def fill_dc1(data = dict):
-    doc = DocxTemplate("backend/Documents/DC1.docx")
-    
+    base = os.path.dirname(__file__)
+    template_path = os.path.join(base, "Documents", "DC1.docx")
+    output_dir = os.path.join(base, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "dc1.docx")
+    doc = DocxTemplate(template_path)
     doc.render(data)
-    doc.save("backend/output/dc1.docx")
+    doc.save(output_path)
         
     

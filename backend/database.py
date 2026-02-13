@@ -50,6 +50,15 @@ def init_db() -> None:
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dc2_operateurs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lot_numero TEXT,
+                nom_membre_groupement TEXT,
+                identification TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
         conn.commit()
         cur = conn.execute("SELECT COUNT(*) FROM questions")
         if cur.fetchone()[0] == 0:
@@ -275,6 +284,65 @@ def delete_mandataire(mandataire_id: int) -> bool:
     conn = _get_conn()
     try:
         cur = conn.execute("DELETE FROM mandataires WHERE id = ?", (mandataire_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_all_dc2_operateurs() -> list[dict[str, Any]]:
+    """Retourne tous les opérateurs DC2 (Module H) enregistrés."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "SELECT id, lot_numero, nom_membre_groupement, identification, created_at FROM dc2_operateurs ORDER BY created_at ASC"
+        )
+        return [
+            {
+                "id": r["id"],
+                "lotNumero": r["lot_numero"] or "",
+                "nomMembreGroupement": r["nom_membre_groupement"] or "",
+                "identification": r["identification"] or "",
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def add_dc2_operateur(lot_numero: str, nom_membre_groupement: str, identification: str) -> dict[str, Any]:
+    """Enregistre un opérateur DC2 (Module H)."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO dc2_operateurs (lot_numero, nom_membre_groupement, identification) VALUES (?, ?, ?)",
+            (lot_numero or "", nom_membre_groupement or "", identification or ""),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, lot_numero, nom_membre_groupement, identification, created_at FROM dc2_operateurs WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+        return {
+            "id": row["id"],
+            "lotNumero": row["lot_numero"] or "",
+            "nomMembreGroupement": row["nom_membre_groupement"] or "",
+            "identification": row["identification"] or "",
+            "created_at": row["created_at"],
+        }
+    finally:
+        conn.close()
+
+
+def delete_dc2_operateur(operateur_id: int) -> bool:
+    """Supprime un opérateur DC2."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute("DELETE FROM dc2_operateurs WHERE id = ?", (operateur_id,))
         conn.commit()
         return cur.rowcount > 0
     finally:
