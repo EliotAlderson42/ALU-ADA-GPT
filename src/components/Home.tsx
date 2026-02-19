@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
 import PdfUploaderDragDrop from "./Grabpdf";
 import type { Question } from "../App";
+import { API_BASE } from "../config";
 
 type HomeProps = {
   setQuestions: Dispatch<SetStateAction<Question[]>>;
@@ -43,7 +44,7 @@ function Home({ setQuestions }: HomeProps) {
     // const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const res = await fetch("http://127.0.0.1:8011/upload", {
+      const res = await fetch(`${API_BASE}/upload`, {
         method: "POST",
         body: formData,
         signal: controller.signal,

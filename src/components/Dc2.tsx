@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
+import { API_BASE } from "../config";
 import { normalizeNewlines } from "../utils";
-
-const API_BASE = "http://127.0.0.1:8011";
 
 type ChatMessage = {
   id: string;
@@ -200,7 +199,12 @@ function Dc2() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createDone, setCreateDone] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const box = (checked: boolean) => (checked ? "☑" : "☐");
 
   const questions: Question[] = (() => {
     try {
@@ -545,6 +549,103 @@ function Dc2() {
       }
     } catch {
       // ignore
+    }
+  };
+
+  /** Payload entièrement plat : une clé par champ, aucun sous-dictionnaire. */
+  const getDc2Payload = (): Record<string, string> => {
+    const out: Record<string, string> = {};
+    out.identificationAcheteur = identificationAcheteur ?? "";
+    out.acheteurId = acheteurId ?? "";
+    out.nomCommercialDenomination = moduleC1.nomCommercialDenomination ?? "";
+    out.adressesPostaleSiege = moduleC1.adressesPostaleSiege ?? "";
+    out.adresseElectronique = moduleC1.adresseElectronique ?? "";
+    out.telephoneTelecopie = moduleC1.telephoneTelecopie ?? "";
+    out.siretOuIdentification = moduleC1.siretOuIdentification ?? "";
+    out.formeJuridique = moduleC1.formeJuridique ?? "";
+    out.microPetiteMoyenneEntreprise = moduleC1.microPetiteMoyenneEntreprise ?? "";
+    moduleC2.forEach((row, idx) => {
+      const n = idx + 1;
+      out[`c2_${n}_isChecked`] = box(row.isChecked);
+      out[`c2_${n}_adresseInternet`] = row.adresseInternet ?? "";
+      out[`c2_${n}_renseignements`] = row.renseignements ?? "";
+    });
+    out.nomListeOfficielle = moduleC3.nomListeOfficielle ?? "";
+    out.referencesInscriptionClassification = moduleC3.referencesInscriptionClassification ?? "";
+    out.adresseInternetCertificat = moduleC3.adresseInternetCertificat ?? "";
+    out.renseignementsAccesCertificat = moduleC3.renseignementsAccesCertificat ?? "";
+    out.declareSurHonneur = box(moduleC3.declareSurHonneur);
+    out.e1InscriptionRegistre = moduleE.e1InscriptionRegistre ?? "";
+    out.e2AutorisationOrganisation = moduleE.e2AutorisationOrganisation ?? "";
+    out.e3AdressesInternet = moduleE.e3AdressesInternet ?? "";
+    out.e3RenseignementsAcces = moduleE.e3RenseignementsAcces ?? "";
+    out.dateCreationOuDebutActivite = moduleF.dateCreationOuDebutActivite ?? "";
+    out.f2AutresInfos = moduleF.f2AutresInfos ?? "";
+    out.f3ResponsabiliteDecennale = box(moduleF.f3ResponsabiliteDecennale);
+    out.f4AdresseInternet = moduleF.f4AdresseInternet ?? "";
+    out.f4RenseignementsAcces = moduleF.f4RenseignementsAcces ?? "";
+    moduleF.exercises.forEach((ex, idx) => {
+      const n = idx + 1;
+      out[`f_ex${n}_du`] = ex.du ?? "";
+      out[`f_ex${n}_au`] = ex.au ?? "";
+      out[`f_ex${n}_chiffreAffairesGlobal`] = ex.chiffreAffairesGlobal ?? "";
+      out[`f_ex${n}_partChiffreAffaires`] = ex.partChiffreAffaires ?? "";
+    });
+    out.g1Recapitulatif = moduleG.g1Recapitulatif ?? "";
+    out.g2AdresseInternet = moduleG.g2AdresseInternet ?? "";
+    out.g2RenseignementsAcces = moduleG.g2RenseignementsAcces ?? "";
+    moduleHRows.forEach((row, idx) => {
+      const n = idx + 1;
+      out[`h_${n}_lotNumero`] = row.lotNumero ?? "";
+      out[`h_${n}_nomMembreGroupement`] = row.nomMembreGroupement ?? "";
+      out[`h_${n}_identification`] = row.identification ?? "";
+    });
+    out.i1Contenu = moduleI.i1Contenu ?? "";
+    out.i2AdresseInternet = moduleI.i2AdresseInternet ?? "";
+    out.i2RenseignementsAcces = moduleI.i2RenseignementsAcces ?? "";
+    return out;
+  };
+
+  const handleCreateDc2 = async () => {
+    const payload = getDc2Payload();
+    setCreating(true);
+    setCreateDone(false);
+    setCreateError(null);
+    try {
+      const res = await fetch(`${API_BASE}/dc2`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCreateDone(true);
+      } else {
+        setCreateError(typeof data?.detail === "string" ? data.detail : "Erreur lors de la création du DC2");
+      }
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Erreur réseau ou serveur");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDownloadDc2 = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/dc2/download`);
+      if (!res.ok) {
+        alert("Document non trouvé. Créez-le d'abord via « Créer DC2 ».");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dc2.docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Impossible de télécharger le document.");
     }
   };
 
@@ -1368,7 +1469,30 @@ function Dc2() {
             </div>
           </div>
 
+          {createError && (
+            <div className="dc2-error" role="alert">
+              {createError}
+              <button type="button" className="dc2-error-dismiss" onClick={() => setCreateError(null)} aria-label="Fermer">×</button>
+            </div>
+          )}
           <div className="dc2-actions">
+            <button
+              type="button"
+              className="dc2-save"
+              onClick={handleCreateDc2}
+              disabled={creating}
+              title="Envoyer toutes les données DC2 au serveur"
+            >
+              {creating ? "Envoi…" : createDone ? "✓ DC2 envoyé" : "Créer DC2"}
+            </button>
+            <button
+              type="button"
+              className="dc2-download"
+              onClick={handleDownloadDc2}
+              title="Télécharger le document DC2"
+            >
+              Télécharger DC2
+            </button>
             <Link to="/dc1" className="dc2-back">
               ← Retour au DC1
             </Link>

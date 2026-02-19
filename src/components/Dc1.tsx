@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
+import { API_BASE } from "../config";
 import { normalizeNewlines, sanitizeKey } from "../utils";
 
 type ChatMessage = {
@@ -33,14 +34,13 @@ type SavedMember = { id: number; lotNumero: string; identification: string; pres
 type SavedMandataire = CandidateInfo & { id: number; created_at?: string };
 type Dc1Props = { questions?: Question[] };
 
-const API_BASE = "http://127.0.0.1:8011";
-
 function Dc1({ questions: questionsProp = [] }: Dc1Props) {
   const [items, setItems] = useState<DataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createDone, setCreateDone] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatQuestion, setChatQuestion] = useState("");
@@ -94,11 +94,19 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
         }
       })();
 
-  // Charger les 5 derniers éléments de data
+  const emptyCandidateState = (): CandidateInfo => ({
+    nomCommercialDenomination: "",
+    adressesPostaleSiege: "",
+    adresseElectronique: "",
+    telephoneTelecopie: "",
+    siretOuIdentification: "",
+  });
+
+  // Charger les 5 derniers éléments de data (ou 2 lignes vides si pas de PDF analysé)
   useEffect(() => {
     const raw = sessionStorage.getItem("ragData");
     if (!raw) {
-      setItems([]);
+      setItems([{ keyword: "", answer: "" }, { keyword: "", answer: "" }]);
       setLoading(false);
       return;
     }
@@ -121,92 +129,87 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
         })
         .filter((e) => e.keyword || e.answer);
       const last5 = normalized.slice(-5);
-      setItems(last5);
+      const need = Math.max(2, last5.length);
+      const padded: DataItem[] = [];
+      for (let i = 0; i < need; i++) padded.push(last5[i] ?? { keyword: "", answer: "" });
+      setItems(padded.slice(0, 2));
     } catch {
-      setItems([]);
+      setItems([{ keyword: "", answer: "" }, { keyword: "", answer: "" }]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Charger les infos de présentation du candidat stockées précédemment
+  // Restaurer le brouillon DC1 depuis sessionStorage au montage (si présent)
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("dc1Candidate");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<CandidateInfo>;
-      setCandidate((prev) => ({ ...prev, ...parsed }));
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Charger l'objet de la candidature (C)
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("dc1ObjetCandidature");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        objetCandidature?: ObjetCandidatureChoice;
-        lotNumero?: string;
-        intituleLots?: string;
-      };
-      if (parsed.objetCandidature)
-        setObjetCandidature(parsed.objetCandidature);
-      if (parsed.lotNumero != null) setLotNumero(parsed.lotNumero);
-      if (parsed.intituleLots != null) setIntituleLots(parsed.intituleLots);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Charger la présentation du candidat (D)
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("dc1Presentation");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        presentationType?: PresentationType;
-        groupementType?: GroupementType;
-        mandataireSolidaire?: MandataireSolidaire;
-      };
-      if (parsed.presentationType) setPresentationType(parsed.presentationType);
-      if (parsed.groupementType) setGroupementType(parsed.groupementType);
-      if (parsed.mandataireSolidaire) setMandataireSolidaire(parsed.mandataireSolidaire);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Charger le module F (engagements) et G (mandataire)
-  useEffect(() => {
-    try {
-      const rawF = sessionStorage.getItem("dc1Engagements");
-      if (rawF) {
-        const f = JSON.parse(rawF) as {
-          f1ExclusionChecked?: boolean;
-          f2AdresseInternet?: string;
-          f2RenseignementsAcces?: string;
-          f3FormulaireDC2?: boolean;
-          f3DocumentsCapacites?: boolean;
-        };
-        if (f.f1ExclusionChecked != null) setF1ExclusionChecked(f.f1ExclusionChecked);
-        if (f.f2AdresseInternet != null) setF2AdresseInternet(f.f2AdresseInternet);
-        if (f.f2RenseignementsAcces != null) setF2RenseignementsAcces(f.f2RenseignementsAcces);
-        if (f.f3FormulaireDC2 != null) setF3FormulaireDC2(f.f3FormulaireDC2);
-        if (f.f3DocumentsCapacites != null) setF3DocumentsCapacites(f.f3DocumentsCapacites);
+      const rawCandidate = sessionStorage.getItem("dc1Candidate");
+      if (rawCandidate) {
+        const c = JSON.parse(rawCandidate) as Partial<CandidateInfo>;
+        setCandidate({ ...emptyCandidateState(), ...c });
       }
-      const rawG = sessionStorage.getItem("dc1Mandataire");
-      if (rawG) {
-        const g = JSON.parse(rawG) as Partial<CandidateInfo>;
-        setMandataire((prev) => ({ ...prev, ...g }));
+      const rawObjet = sessionStorage.getItem("dc1ObjetCandidature");
+      if (rawObjet) {
+        const o = JSON.parse(rawObjet) as { objetCandidature?: string; lotNumero?: string; intituleLots?: string };
+        if (o.objetCandidature) setObjetCandidature(o.objetCandidature as ObjetCandidatureChoice);
+        if (o.lotNumero != null) setLotNumero(String(o.lotNumero));
+        if (o.intituleLots != null) setIntituleLots(String(o.intituleLots));
+      }
+      const rawPres = sessionStorage.getItem("dc1Presentation");
+      if (rawPres) {
+        const p = JSON.parse(rawPres) as { presentationType?: string; groupementType?: string; mandataireSolidaire?: string };
+        if (p.presentationType) setPresentationType(p.presentationType as PresentationType);
+        if (p.groupementType) setGroupementType(p.groupementType as GroupementType);
+        if (p.mandataireSolidaire) setMandataireSolidaire(p.mandataireSolidaire as MandataireSolidaire);
+      }
+      const rawRows = sessionStorage.getItem("dc1GroupementRows");
+      if (rawRows) {
+        const rows = JSON.parse(rawRows) as GroupementRow[];
+        if (Array.isArray(rows) && rows.length >= 1) setGroupementRows(rows);
+      }
+      const rawEng = sessionStorage.getItem("dc1Engagements");
+      if (rawEng) {
+        const e = JSON.parse(rawEng) as { f1ExclusionChecked?: boolean; f2AdresseInternet?: string; f2RenseignementsAcces?: string; f3FormulaireDC2?: boolean; f3DocumentsCapacites?: boolean };
+        if (e.f1ExclusionChecked != null) setF1ExclusionChecked(!!e.f1ExclusionChecked);
+        if (e.f2AdresseInternet != null) setF2AdresseInternet(String(e.f2AdresseInternet));
+        if (e.f2RenseignementsAcces != null) setF2RenseignementsAcces(String(e.f2RenseignementsAcces));
+        if (e.f3FormulaireDC2 != null) setF3FormulaireDC2(!!e.f3FormulaireDC2);
+        if (e.f3DocumentsCapacites != null) setF3DocumentsCapacites(!!e.f3DocumentsCapacites);
+      }
+      const rawMand = sessionStorage.getItem("dc1Mandataire");
+      if (rawMand) {
+        const m = JSON.parse(rawMand) as Partial<CandidateInfo>;
+        setMandataire({ ...emptyCandidateState(), ...m });
       }
     } catch {
-      // ignore
+      // ignore invalid stored data
     }
   }, []);
 
-  // Charger les membres enregistrés (API) et le module E (sessionStorage)
+  // Sauvegarder le brouillon DC1 en sessionStorage (debounce)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem("dc1Candidate", JSON.stringify(candidate));
+        sessionStorage.setItem("dc1ObjetCandidature", JSON.stringify({ objetCandidature, lotNumero, intituleLots }));
+        sessionStorage.setItem("dc1Presentation", JSON.stringify({ presentationType, groupementType, mandataireSolidaire }));
+        sessionStorage.setItem("dc1GroupementRows", JSON.stringify(groupementRows));
+        sessionStorage.setItem("dc1Engagements", JSON.stringify({
+          f1ExclusionChecked,
+          f2AdresseInternet,
+          f2RenseignementsAcces,
+          f3FormulaireDC2,
+          f3DocumentsCapacites,
+        }));
+        sessionStorage.setItem("dc1Mandataire", JSON.stringify(mandataire));
+      } catch {
+        // ignore
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [candidate, objetCandidature, lotNumero, intituleLots, presentationType, groupementType, mandataireSolidaire, groupementRows, f1ExclusionChecked, f2AdresseInternet, f2RenseignementsAcces, f3FormulaireDC2, f3DocumentsCapacites, mandataire]);
+
+  // Charger les membres enregistrés (API)
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -232,18 +235,6 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
     };
     fetchMembers();
     fetchMandataires();
-  }, []);
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("dc1GroupementRows");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as GroupementRow[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setGroupementRows(parsed);
-      }
-    } catch {
-      // ignore
-    }
   }, []);
 
   const handleChange = (index: number, field: "keyword" | "answer", value: string) => {
@@ -312,66 +303,50 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
   };
 
   const handleCreateDc1 = async () => {
-    const raw = sessionStorage.getItem("ragData");
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown[];
-        const list = Array.isArray(parsed) ? parsed : [];
-        const head = list.slice(0, -items.length);
-        const tail = items.map((i) => [i.keyword, i.answer] as [string, string]);
-        sessionStorage.setItem("ragData", JSON.stringify([...head, ...tail]));
-      } else {
-        sessionStorage.setItem(
-          "ragData",
-          JSON.stringify(items.map((i) => [i.keyword, i.answer]))
-        );
-      }
-    } catch {
-      sessionStorage.setItem(
-        "ragData",
-        JSON.stringify(items.map((i) => [i.keyword, i.answer]))
-      );
-    }
-    sessionStorage.setItem("dc1Candidate", JSON.stringify(candidate));
-    sessionStorage.setItem(
-      "dc1ObjetCandidature",
-      JSON.stringify({ objetCandidature, lotNumero, intituleLots })
-    );
-    sessionStorage.setItem(
-      "dc1Presentation",
-      JSON.stringify({
-        presentationType,
-        groupementType,
-        mandataireSolidaire,
-      })
-    );
-    sessionStorage.setItem("dc1GroupementRows", JSON.stringify(groupementRows));
-    sessionStorage.setItem(
-      "dc1Engagements",
-      JSON.stringify({
-        f1ExclusionChecked,
-        f2AdresseInternet,
-        f2RenseignementsAcces,
-        f3FormulaireDC2,
-        f3DocumentsCapacites,
-      })
-    );
-    sessionStorage.setItem("dc1Mandataire", JSON.stringify(mandataire));
-
+    const payload = getDc1Payload();
     setCreating(true);
     setCreateDone(false);
+    setCreateError(null);
     try {
       const res = await fetch(`${API_BASE}/dc1`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(getDc1Payload()),
+        body: JSON.stringify(payload),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
         setCreateDone(true);
+        const empty = emptyCandidateState();
+        setCandidate(empty);
+        setObjetCandidature("");
+        setLotNumero("");
+        setIntituleLots("");
+        setPresentationType("");
+        setGroupementType("");
+        setMandataireSolidaire("");
+        setGroupementRows([{ lotNumero: "", identification: "", prestations: "" }]);
+        setF1ExclusionChecked(false);
+        setF2AdresseInternet("");
+        setF2RenseignementsAcces("");
+        setF3FormulaireDC2(false);
+        setF3DocumentsCapacites(false);
+        setMandataire(empty);
+        try {
+          sessionStorage.removeItem("dc1Candidate");
+          sessionStorage.removeItem("dc1ObjetCandidature");
+          sessionStorage.removeItem("dc1Presentation");
+          sessionStorage.removeItem("dc1GroupementRows");
+          sessionStorage.removeItem("dc1Engagements");
+          sessionStorage.removeItem("dc1Mandataire");
+        } catch {
+          // ignore
+        }
+      } else {
+        setCreateError(typeof data?.detail === "string" ? data.detail : "Erreur lors de la création du DC1");
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Erreur réseau ou serveur");
     } finally {
       setCreating(false);
     }
@@ -535,16 +510,6 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
   };
 
   if (loading) return <p className="dc1-loading">Chargement…</p>;
-  if (items.length === 0)
-    return (
-      <section className="dc1-page">
-        <h1>DC1</h1>
-        <p>Aucune donnée disponible. Analysez d'abord un PDF depuis l'accueil.</p>
-        <Link to="/" className="dc1-back">
-          ← Retour à l'accueil
-        </Link>
-      </section>
-    );
 
   return (
     <section className="dc1-page">
@@ -1248,6 +1213,12 @@ function Dc1({ questions: questionsProp = [] }: Dc1Props) {
             </div>
           </div>
 
+          {createError && (
+            <div className="dc1-error" role="alert">
+              {createError}
+              <button type="button" className="dc1-error-dismiss" onClick={() => setCreateError(null)} aria-label="Fermer">×</button>
+            </div>
+          )}
           <div className="dc1-actions">
             <button
               type="button"

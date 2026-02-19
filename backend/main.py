@@ -1,8 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from backend.create_dc1 import create_dc1, fill_dc1
+from backend.create_dc2 import create_dc2, fill_dc2
+from backend.cut_by_segment import cut_by_segment
 import tempfile
 import os
 import sys
@@ -12,6 +14,16 @@ import numpy as np
 import ollama
 
 app = FastAPI(title="ALU/ADA GPT - RAG PDF")
+
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    """Log chaque requête entrante pour vérifier que le backend les reçoit."""
+    print(f"[BACKEND] Requête reçue: {request.method} {request.url.path}", flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    response = await call_next(request)
+    return response
 
 
 class QuestionCreate(BaseModel):
@@ -41,8 +53,10 @@ _last_upload_chunks = None
 
 @app.on_event("startup")
 def startup():
+    import os as _os
     db.init_db()
-    print("[BACKEND] Démarré. POST /upload, GET /questions, etc. sur http://127.0.0.1:8000", flush=True)
+    pid = _os.getpid()
+    print(f"[BACKEND] Démarré — PID={pid} (ce processus). Vérifie que c’est bien lui qui écoute sur le port avec: netstat -ano | findstr :8011", flush=True)
 
 
 @app.get("/health")
@@ -160,12 +174,14 @@ def update_question(question_id: int, body: QuestionUpdate):
 
 
 @app.post("/dc1")
-def create_dc1_submit(body: dict):
+async def create_dc1_submit(request: Request):
     """
     Reçoit toutes les données de la page DC1 (modules A/B, C, D, E, F, G).
-    Retourne les données reçues pour confirmation ; le backend peut ensuite
-    générer un document (Word, etc.) ou les stocker.
+    Utilise strictement le JSON envoyé par le frontend (aucune donnée en cache).
     """
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Corps de requête JSON invalide")
     data = create_dc1(body)
     fill_dc1(data)
     return {"ok": True, "data": body}
@@ -178,6 +194,26 @@ def download_dc1():
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="Document DC1 non trouvé. Créez-le d'abord via « Créer DC1 ».")
     return FileResponse(path, filename="dc1.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@app.post("/dc2")
+async def create_dc2_submit(request: Request):
+    """Reçoit le payload plat DC2 (une clé par champ) et génère dc2.docx."""
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Corps de requête JSON invalide")
+    # data = create_dc2(body)
+    fill_dc2(body)
+    return {"ok": True, "data": body}
+
+
+@app.get("/dc2/download")
+def download_dc2():
+    """Télécharge le document DC2 généré (dc2.docx)."""
+    path = os.path.join(os.path.dirname(__file__), "output", "dc2.docx")
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Document DC2 non trouvé. Créez-le d'abord via « Créer DC2 ».")
+    return FileResponse(path, filename="dc2.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 @app.post("/ask")
@@ -217,18 +253,54 @@ def sync_questions_from_default():
     return db.sync_from_default_questions()
 
 
+_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _cors_headers(origin: str | None) -> dict:
+    """En-têtes CORS pour que le navigateur accepte la réponse (y compris erreurs 500)."""
+    if origin and origin in _CORS_ORIGINS:
+        return {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true"}
+    return {"Access-Control-Allow-Origin": "http://localhost:5173", "Access-Control-Allow-Credentials": "true"}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Ajoute CORS aux réponses d’erreur HTTP (400, 404, etc.)."""
+    origin = request.headers.get("origin")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=_cors_headers(origin),
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Log l’exception et renvoie une 500 avec CORS pour que le front reçoive l’erreur."""
+    import traceback
+    print("[BACKEND] Exception:", repr(exc), flush=True)
+    print(traceback.format_exc(), flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    origin = request.headers.get("origin")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers=_cors_headers(origin),
+    )
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -254,8 +326,13 @@ async def upload_pdf(file: UploadFile = File(...)):
         text = chunk.pdfReader(temp_file_path)
 
         # Chunks par clustering K-means (phrases → embeddings → clusters) ou par fenêtre glissante
-        chunks = chunk.chunk_text(text)
-
+        # chunks = chunk.chunk_text(text)
+        chunks = cut_by_segment(text)
+        # for ch in chunks:    
+        #     print(ch)
+        #     print("--------------------------------")
+        # if True:
+        #     exit()
         chunk_embeddings = []
         for c in chunks:
             emb = ollama.embeddings(

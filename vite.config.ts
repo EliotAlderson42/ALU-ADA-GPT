@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     host: true, // écoute sur 0.0.0.0 : accessible via ton IP (ex. http://192.168.x.x:5173)
     proxy: {
+      // Même port que dans src/config.ts (API_BASE)
       '/api': {
         target: 'http://127.0.0.1:8011',
         changeOrigin: true,

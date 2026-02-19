@@ -13,7 +13,7 @@ from collections import defaultdict
 
 questions_rag = [
     {
-        "llm": "Qu'est-ce qui est prévue pour ce projet?",
+        "llm": "Qu'est-ce qui est prévue pour ce projet? L'information est dans le header",
         "rerank": "Type de projet (école, gymnase, équipement culturel, bâtiment administratif)",
         "user": "Quel est le type d'infrastructure ?",
         "keyword": "Type"
@@ -67,7 +67,7 @@ questions_rag = [
         "rerank": "Maître d’ouvrage"
     },
     {
-        "llm": "Extraits le numéro de telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire dans ce format'Nom de la commune avec EPCI si possible - Tél: numero de telephone - Représentant de l'acheteur: Nom du representant, site de l'acheteur: site - Adresse mail de l'acheteur: mail' et n'ajoute rien d'autres que ces infos",
+        "llm": "Extraits le numéro de telephone, l'adresse, l'adresse mail, le site web et le nom du mandataire dans ce format'Nom de la commune: Nom de la commune - Tél: numero de telephone OBLIGATOIREMENT a 10 chiffres - Représentant de l'acheteur: Nom du representant, site de l'acheteur: site - Adresse mail de l'acheteur: mail' et n'ajoute rien d'autres que ces infos, ne réponds pas si l'info n'est pas fournie. Il y aura surement les mots 'Affaire suivie par' a cote du nom",
         "keyword": "Mandataire",
         "user": "Qui est le mandataire du projet si il y en a un?",
         "rerank": "Mandataire du projet agissant pour le compte du maître d'ouvrage"
@@ -188,7 +188,7 @@ questions_rag = [
         "keyword": "Numéro"
     },
     {
-        "llm": "Quel est le type d'opération, sur quelle infrastructure et ou se situe l'infrastruscture en question ? Si tu ne trouves pas la réponses dans les ectraits fournis répond 'Non précisé'",
+        "llm": "Quel est le type d'opération, sur quelle infrastructure et ou se situe l'infrastruscture en question ? Si tu ne trouves pas la réponses dans les extraits fournis répond 'Non précisé'",
         "rerank": "Type d'opération et infrastructure",
         "user": "Quel est le type d'opération et sur quelle infrastructure ?",
         "keyword": "Type d'opération"
@@ -212,31 +212,32 @@ Règles ABSOLUES :
 - Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
 - Ne donne aucun contexte."""
 
-prompt_mandataire = """
-Tu es un extracteur d’informations.
+# prompt_mandataire = """
+# Tu es un extracteur d’informations.
 
-Tu dois toujours répondre uniquement avec un JSON valide.
-Aucun texte en dehors du JSON.
+# Tu dois toujours répondre uniquement avec un JSON valide.
+# Aucun texte en dehors du JSON.
 
-Si une donnée est absente ou incertaine, mets null.
-Ne devine jamais.
+# Si une donnée est absente ou incertaine, mets null.
+# Ne devine jamais.
 
-"""
+# """
 
 system_prompt = """
-Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marché public;
-Tu extrais uniquement des informations factuelles présentes dans le contexte fourni.
+Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marchés publics.
+Tu extrais uniquement des informations factuelles présentes dans le contexte (texte du document fourni ci-dessous).
 
-Règles:
--N'invente jamais.
--Si il y a plusieurs questions, réponds uniquement à celles dont la réponses est fourni dans le texte fournis et ignore les autres.
--Si l'information n'est pas renseigné dans le texte fourni répond juste: "Information non précisé"
+Règles de fond :
+- N'INVENTE JAMAIS AUCUNE INFORMATION.
+- S'il y a plusieurs questions, réponds uniquement à celles dont la réponse figure dans le texte fourni ; ignore les autres. Donne une réponse par question, sans préfixe ("Réponse :", "La réponse est :", etc.).
+- Si l'information n'est pas renseignée dans le texte fourni, réponds uniquement : "Information non précisée".
+- Chiffres, montants, numéros de téléphones et dates : restitue-les tels qu'ils apparaissent (unités, symboles €, format) sans reformuler ni approximer.
+- En cas d'ambiguïté, donne la réponse la plus cohérente avec le contexte, sans inventer.
 
-Format:
--Réponse courte et factuelle.
--Pas d'éxplication.
--Ne formule pas de phrases.
--Répond uniquement par la réponse attendu. 
+Format de réponse :
+- Réponse courte et factuelle.
+- Pas d'explication ni de phrase d'introduction.
+- Réponds uniquement par la réponse attendue, sans formule ni commentaire.
 """
 
 ##Fonction pour retrier plus pointilleusement les n meilleurs chunks 
@@ -691,12 +692,12 @@ def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
     epci = str()
-    header = chunks[0]["text"] + "\n\n" + chunks[1]["text"]
+    header = "HEADER: \n" + chunks[0]["text"] + "\n\n" + chunks[1]["text"]
     addMetaData(chunks, None)
     prompt = system_prompt
     for i in range(len(questions_rag)):
         # if True:
-        # if i == 0:
+        if i == 8:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
@@ -714,7 +715,7 @@ def main_loop(embeddings, questions_rag, chunks):
             # else:
             merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
             if questions_rag[i]["keyword"] == "Mandataire" or questions_rag[i]["keyword"] == "Type":
-                prompt = prompt_mandataire
+                # prompt = prompt_mandataire
                 merged_context += "\n\n" + header
             else:
                 prompt = system_prompt

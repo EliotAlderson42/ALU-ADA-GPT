@@ -1,0 +1,35 @@
+# Placeholders pour le template DC1.docx
+
+Utilisez {{ nom_variable }} dans le fichier DC1.docx pour insérer les données du formulaire.
+
+Variables principales (candidat) :
+- nomCommercialDenomination / nom_commercial_denomination
+- adressesPostaleSiege / adresses_postale_siege
+- adresseElectronique / adresse_electronique
+- telephoneTelecopie / telephone_telecopie
+- siretOuIdentification / siret_ou_identification
+
+Module C (objet) :
+- non_allotissement, tous_lots, lots_determines (☑ ou ☐)
+- lotNumero, intituleLots
+
+Module D (présentation) :
+- seul, groupement (☑ ou ☐)
+- conjoint, solidaire (☑ ou ☐)
+- non, oui (mandataire solidaire)
+
+Module E (groupement) :
+- lotNumero_1, identifications_1, prestations_1
+- lotNumero_2, identifications_2, prestations_2
+- etc.
+
+Module F (engagements) :
+- f1ExclusionChecked, f2AdresseInternet, f2RenseignementsAcces
+- f3FormulaireDC2, f3DocumentsCapacites
+
+Mandataire (préfixe mandataire_) :
+- mandataire_nomCommercialDenomination
+- mandataire_adressesPostaleSiege
+- mandataire_adresseElectronique
+- mandataire_telephoneTelecopie
+- mandataire_siretOuIdentification

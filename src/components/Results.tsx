@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import type { Question } from "../App";
+import { API_BASE } from "../config";
 import { normalizeNewlines } from "../utils";
-
-const API_BASE = "http://127.0.0.1:8011";
 
 type ResultsProps = {
   questions: Question[];
