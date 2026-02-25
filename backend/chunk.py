@@ -4,6 +4,7 @@ import ollama
 import re
 import requests
 import time
+import unicodedata
 import pysbd
 from backend import add_metadata
 from sentence_transformers import CrossEncoder
@@ -193,6 +194,12 @@ questions_rag = [
         "user": "Quel est le type d'opération et sur quelle infrastructure ?",
         "keyword": "Type d'opération"
     },
+    {
+        "llm": "Extraits toutes les informations en format JSON correspondantes aux nombres et aux types de références demandés dans le contexte",
+        "rerank": "Nombres et types de références demandés",
+        "user": "ref",
+        "keyword": "Références"
+    }
     # {
     #     "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
     #     "rerank": "Critères d’appréciation ou d’évaluation d’une offre avec pondération ou pourcentage (prix, valeur technique, délais).",
@@ -304,7 +311,7 @@ def chunk_text(text, chunk_size=300, overlap=50):
                 "has_missions": False,
                 "has_maquette": False,
                 "has_film": False,
-                "has_références": False,
+                "has_references": False,
                 "has_tranches": False,
                 "has_second_deadline": False,
                 "has_number": False,
@@ -378,7 +385,7 @@ def pdfReader(file):
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-    return nettoyer_caracteres_repetes(text)
+    return text
 
 def addMetaData(chunks, keyword):
     for chunk in chunks:
@@ -655,7 +662,8 @@ def match_metadata(keyword, chunks, embeddings):
     elif keyword == "Film":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_film"]]
     elif keyword == "Références":
-        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_références"]]
+        print(f"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_references"]]
     elif keyword == "Tranches":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_tranches"]]
     elif keyword == "Intervention":
@@ -669,6 +677,11 @@ def match_metadata(keyword, chunks, embeddings):
     else:
         return embeddings, chunks
     candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]
+    if len(candidats) == 0:
+        return candidats_emb, candidats
+    # for can in candidats:
+    #     print(f"Candidats n°{can["metadata"]["id"]}")
+    #     print("--------------------------------")
     return candidats_emb, candidats
 
 
@@ -692,12 +705,13 @@ def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
     epci = str()
+    # print(f"TAILLE = {len(chunks)}")
     header = "HEADER: \n" + chunks[0]["text"] + "\n\n" + chunks[1]["text"]
     addMetaData(chunks, None)
     prompt = system_prompt
     for i in range(len(questions_rag)):
-        # if True:
-        if i == 8:
+        # if False:
+        # if i == 28:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
@@ -709,7 +723,7 @@ def main_loop(embeddings, questions_rag, chunks):
                 best_chunks.append(candidats[idx]["text"])
             # print("SALUT")
             
-            reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:3]
+            reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:2]
             # if questions_rag[i]["keyword"] == "Mandataire":
             #     merged_context = header
             # else:

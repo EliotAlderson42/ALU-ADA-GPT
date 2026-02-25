@@ -1,5 +1,6 @@
 import re
 import os
+import unicodedata
 
 def add_price_metadata(chunk):
     PRICE_PATTERN = re.compile(
@@ -65,7 +66,7 @@ def add_mandataire_metadata(chunk):
     )
     if re.search(MANDATAIRE_PATTERN, chunk["text"]):
         chunk["metadata"]["has_mandataire"] = True
-        print(f"TEXTE == {chunk['text']}\n")
+        # print(f"TEXTE == {chunk['text']}\n")
 
 def add_mandataire_requis_metadata(chunk):
     MANDATAIRE_REQUIS_PATTERN = re.compile(
@@ -126,11 +127,13 @@ def add_film_metadata(chunk):
 
 def add_references_metadata(chunk):
     REFERENCES_PATTERN = re.compile(
-        r"\b(?:références|références professionnelles)\b",
-        re.IGNORECASE
+        r"\b(?:références|références professionnelles|référence)\b",
+        re.IGNORECASE,
     )
-    if re.search(REFERENCES_PATTERN, chunk["text"]):
-        chunk["metadata"]["has_références"] = True
+    # Normaliser en NFC pour matcher même si le PDF a fourni du NFD (é = e + accent)
+    text_nfc = unicodedata.normalize("NFC", chunk["text"])
+    if re.search(REFERENCES_PATTERN, text_nfc):
+        chunk["metadata"]["has_references"] = True
 
 def add_tranches_metadata(chunk):
     TRANCHES_PATTERN = re.compile(
