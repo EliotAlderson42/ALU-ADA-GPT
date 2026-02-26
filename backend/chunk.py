@@ -195,7 +195,7 @@ questions_rag = [
         "keyword": "Type d'opération"
     },
     {
-        "llm": "Extraits toutes les informations en format JSON correspondantes aux nombres et aux types de références demandés dans le contexte",
+        "llm": "Extraits toutes les données utiles concernant les références demandés.",
         "rerank": "Nombres et types de références demandés",
         "user": "ref",
         "keyword": "Références"
@@ -711,7 +711,7 @@ def main_loop(embeddings, questions_rag, chunks):
     prompt = system_prompt
     for i in range(len(questions_rag)):
         # if False:
-        # if i == 28:
+        if i == 28:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)

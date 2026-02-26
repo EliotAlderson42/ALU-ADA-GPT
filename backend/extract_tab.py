@@ -1,8 +1,8 @@
 import pandas as pd 
 
-
-def create_ref():
+def create_ref(row):
     ref = {
+        "id_projet": "",
         "nom_projet" : "",
         "equipe_interne": "",
         "statut_projet": "",
@@ -46,10 +46,37 @@ def create_ref():
         "points_fort": "",
         "contraintes_majeur": "",
         "parti_architectural": "",
-        "innovation_technique": "",
-
+        "innovation_technique": ""
     }
+    
+    for i, key in enumerate(ref):
+        ref[key] = row[i]
+    
+    # print(ref)
+    return ref
 
 def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
+    
+    # res = db
+    res = []
     data = pd.read_excel(path)
+    # print(data.head())
+    # print(data.columns)
+    # print(data.info())
+    for row in data.values:
+        res.append(create_ref(row))
+        print("0000000000000000000000")
+        print(row)
+        print("0000000000000000000000")
+
+
+    for r in res:
+        print(r)
+        print("-----------------------------------------")
+    print(f"TAAAAAILLE = {len(res)}")
+
+
+def clear_row(row):
+    row = row.replace("'", "")
+    row = row.split()
 

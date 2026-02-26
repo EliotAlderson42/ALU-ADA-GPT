@@ -1,7 +1,7 @@
 import os
 import re
 import unicodedata
-
+from backend.extract_tab import extract_db
 
 def middle_split(text):
     res = []
@@ -107,6 +107,8 @@ def cut_again(text, number):
     return res
 
 def cut_by_segment(text):
+    # extract_db()
+    # return 0
     to_push = ""
     # res = []
     chunks = []
