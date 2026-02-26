@@ -3,27 +3,6 @@ import re
 import unicodedata
 
 
-# def delete_sommaire(text):
-#     segments = text.split("\n")
-#     in_sommaire = 0
-#     SOMMAIRE_PATTERN = re.compile(r"^SOMMAIRE\s*$", re.IGNORECASE)
-#     to_delete = []
-#     for segment in segments:
-#         if in_sommaire == 1 and re.search(r"\d$", segment) or re.search(r"^d", segment):
-#             to_delete.append(segment)
-#             print(segment)
-
-#         elif in_sommaire == 1 and not re.search(r"\d$", segment):
-#             in_sommaire = 0
-
-#         if re.search(SOMMAIRE_PATTERN, segment) and in_sommaire == 0:
-#             in_sommaire = 1
-#             to_delete.append(segment)
-#     for delete in to_delete:
-#         segments.remove(delete)
-#     # print(segments)
-#     return segments
-
 def middle_split(text):
     res = []
     length = len(text) // 2
@@ -49,9 +28,6 @@ def delete_sommaire(text):
         print(f"DELETE = {delete}")
         segments.remove(delete)
     return segments
-
-
-    
 
 def create_chunk(text, id):
     return {
@@ -83,42 +59,42 @@ def create_chunk(text, id):
     }
 
 def cut_again(text, number):
-    print(f"NUMBER = {number}")
-    if number:
-        suite =  ["a)", "1)", "a.", "1.", f"{number}-1", f"{number}.1"]
-        patterns = [
-            re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
-            re.compile(r"^\d+\)"),    # 1)
-            re.compile(r"^[a-z]\.", re.IGNORECASE),  # a.
-            re.compile(r"^\d+\."),    # 1.
-            re.compile(rf"^{number}+-\d+"),    # 1-1
-            re.compile(rf"^{number}+\.\d+"),    # 1.1
-        ]
+    # print(f"NUMBER = {number}")
+    # if number:
+    #     suite =  ["a)", "1)", "a.", "1.", f"{number}-1", f"{number}.1"]
+    #     patterns = [
+    #         re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
+    #         re.compile(r"^\d+\)"),    # 1)
+    #         re.compile(r"^[a-z]\.", re.IGNORECASE),  # a.
+    #         re.compile(r"^\d+\."),    # 1.
+    #         re.compile(rf"^{number}+-\d+"),    # 1-1
+    #         re.compile(rf"^{number}+\.\d+"),    # 1.1
+    #     ]
         
-    else:
-        suite =  ["a)", "1)", "a.", "1.", "1-1", "1.1"]
-        patterns = [
-            re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
-            re.compile(r"^\d+\)"),    # 1)
-            re.compile(r"^[a-z]\.", re.IGNORECASE),  # a.
-            re.compile(r"^\d+\."),    # 1.
-            re.compile(r"^d+-\d+"),    # 1-1
-            re.compile(r"^d+\.\d+"),    # 1.1
-        ]
+    # else:
+    #     suite =  ["a)", "1)", "a.", "1.", "1-1", "1.1"]
     to_push = ""
     res = []
+    exxit = 0
+
+    patterns = [
+        re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
+        re.compile(r"^\d+\)"),    # 1)
+        re.compile(r"^[a-z]\."),  # a.
+        re.compile(r"^\d+\."),    # 1.
+        re.compile(r"^d+-\d+"),    # 1-1
+        re.compile(r"^d+\.\d+"),    # 1.1
+    ]
     text_list = text.split("\n")
     for texte in text_list:
-        phrase = texte.split(" ")
-
-        # if phrase[0] in suite:
-        #     # print(f"PHRAAAAAAASE = {phrase[0]}")
-        #     index = suite.index(phrase[0])
-        #     break
         for pattern in patterns:
             if re.search(pattern, texte):
+                print(f"PHRAAAAAAASE = {texte}")
+                exxit = 1
                 index = patterns.index(pattern)
                 break
+        if exxit == 1:
+            break
 
     for text in text_list:
         if re.search(patterns[index], text):
@@ -161,7 +137,10 @@ def cut_by_segment(text):
         if re.search(pattern[index], segment):
             cut = to_push.split(" ")
             if len(to_push) >= 5000:
-                # lst = cut_again(to_push, int(cut[1]))
+                # print(f"CUUUUUUUUUTIE == {cut[1]}")
+                # if cut[1] >= '0' and cut[1] <= '9':
+                #     lst = cut_again(to_push, int(cut[1]))
+                # else: 
                 lst = cut_again(to_push, None)
 
                 to_push = segment + "\n"
@@ -177,7 +156,9 @@ def cut_by_segment(text):
             to_push += segment + "\n"
 
     if len(to_push) >= 5000:
+
         cut = to_push.split(" ")
+        print(f"CUUT = {cut[1]}")
         # lst = cut_again(to_push, int(cut[1]))
         lst = cut_again(to_push, None)
 
