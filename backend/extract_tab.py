@@ -1,5 +1,9 @@
 import pandas as pd 
 
+#IDEES:
+#1: Demander au llm de faire un resumer de chaque references les foutres dans une dbv et les comparer avec le rendu de la reponse
+#2:
+
 def create_ref(row):
     ref = {
         "id_projet": "",
@@ -54,6 +58,9 @@ def create_ref(row):
     
     # print(ref)
     return ref
+
+
+
 
 def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
     

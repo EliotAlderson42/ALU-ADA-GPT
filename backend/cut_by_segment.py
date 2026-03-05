@@ -59,33 +59,23 @@ def create_chunk(text, id):
     }
 
 def cut_again(text, number):
-    # print(f"NUMBER = {number}")
-    # if number:
-    #     suite =  ["a)", "1)", "a.", "1.", f"{number}-1", f"{number}.1"]
-    #     patterns = [
-    #         re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
-    #         re.compile(r"^\d+\)"),    # 1)
-    #         re.compile(r"^[a-z]\.", re.IGNORECASE),  # a.
-    #         re.compile(r"^\d+\."),    # 1.
-    #         re.compile(rf"^{number}+-\d+"),    # 1-1
-    #         re.compile(rf"^{number}+\.\d+"),    # 1.1
-    #     ]
-        
-    # else:
-    #     suite =  ["a)", "1)", "a.", "1.", "1-1", "1.1"]
     to_push = ""
     res = []
     exxit = 0
+    index = -1
 
     patterns = [
         re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
         re.compile(r"^\d+\)"),    # 1)
         re.compile(r"^[a-z]\."),  # a.
         re.compile(r"^\d+\."),    # 1.
-        re.compile(r"^d+-\d+"),    # 1-1
-        re.compile(r"^d+\.\d+"),    # 1.1
+        re.compile(r"^\d+-\d+"),    # 1-1
+        re.compile(r"^\d+\.\d+"),    # 1.1
     ]
     text_list = text.split("\n")
+    # for t in text_list:
+        # print(f"COUUUUPER === {t}")
+
     for texte in text_list:
         for pattern in patterns:
             if re.search(pattern, texte):
@@ -95,16 +85,19 @@ def cut_again(text, number):
                 break
         if exxit == 1:
             break
-
-    for text in text_list:
-        if re.search(patterns[index], text):
-            # print(f"TOPUUUUUUSH = {to_push}")
-            res.append(to_push)
-            to_push = text + "\n"
-        else:
-            to_push += text + "\n"
-    res.append(to_push)
-    return res
+    if index:    
+        print(f"INDEX == {index} DEBUT === {text_list[0]}")
+    if exxit == 1:
+        for texte in text_list:
+            if re.search(patterns[index], texte):
+                res.append(to_push)
+                to_push = texte + "\n"
+            else:
+                to_push += texte + "\n"
+        res.append(to_push)
+        return res
+    else:
+        return text
 
 def cut_by_segment(text):
     # extract_db()
@@ -143,13 +136,21 @@ def cut_by_segment(text):
                 # if cut[1] >= '0' and cut[1] <= '9':
                 #     lst = cut_again(to_push, int(cut[1]))
                 # else: 
+                # print(f"YOUHOOOOU = {to_push}")
                 lst = cut_again(to_push, None)
-
                 to_push = segment + "\n"
-                
-                for l in lst:
-                    chunks.append(create_chunk(l, id_chunk))
+                if isinstance(lst, str):
+                    chunks.append(create_chunk(lst, id_chunk))
                     id_chunk += 1
+                # for y in lst:
+                #     print(f"PROBLEMOS=== {y}")
+                
+                else:
+                    for l in lst:
+                    # if len(l) < 10:
+                    #     print(f"PROBLEME == {l}")
+                        chunks.append(create_chunk(l, id_chunk))
+                        id_chunk += 1
             else:
                 chunks.append(create_chunk(to_push, id_chunk))
                 to_push = segment + "\n"
@@ -170,12 +171,12 @@ def cut_by_segment(text):
     else:
         chunks.append(create_chunk(to_push, id_chunk))
 
-    for r in chunks:
-        print(r["text"])
-        print(f"TAILLE = {len(r["text"])}")
-        print("--------------------------------")
-        print("--------------------------------")
-    print(f"TAILLE = {len(chunks)}")
+    # for r in chunks:
+    #     print(r["text"])
+    #     print(f"TAILLE = {len(r["text"])}")
+    #     print("--------------------------------")
+    #     print("--------------------------------")
+    # print(f"TAILLE = {len(chunks)}")
     # print(res)
     return chunks
 

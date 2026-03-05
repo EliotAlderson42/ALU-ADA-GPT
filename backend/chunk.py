@@ -195,10 +195,32 @@ questions_rag = [
         "keyword": "Type d'opération"
     },
     {
-        "llm": "Extraits toutes les données utiles concernant les références demandés.",
+        "llm": "Extraits toutes les informations concernant les références demandés",
         "rerank": "Nombres et types de références demandés",
         "user": "ref",
         "keyword": "Références"
+    },
+    {
+        "llm": """
+Tu es un extracteur d'information agissant sur des appels d'offres.
+Tu dois m'extraire toutes les informations concernant des références voulue.
+Schéma attendu :
+
+{
+  "role": "string | null",
+  "nature_operation": "rehabilitation | renovation_thermique | neuf | null",
+  "site_occupe": "true | false | null",
+  "sdp_min": "number | null",
+  "typologie": "enseignement_secondaire | enseignement_superieur | erp | null | logements",
+  "date_projet": "number | null",
+  "performance_energetique": {
+      "cep_max": "number | null",
+      "demarche": "e3c1 | cre | mgp | null"
+  }
+}""",
+        "rerank": "0",
+        "user": "0",
+        "keyword": "json"
     }
     # {
     #     "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
@@ -689,8 +711,10 @@ def add_question(question, keyword, rerank_query, embeddings, chunks):
     question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=rerank_query)["embedding"])
     addMetaData(chunks, None)
     data_embed, candidats = match_metadata(keyword, chunks, embeddings)
+
     if not candidats:
         return "Aucun extrait trouvé pour ce mot-clé."
+        
     similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
     top_10 = np.argsort(similarities)[-10:][::-1]
     best_chunks = [candidats[idx]["text"] for idx in top_10]
@@ -700,7 +724,7 @@ def add_question(question, keyword, rerank_query, embeddings, chunks):
     print(f"QUESTION = {question}\n\nmerged_context = {merged_context}", flush=True)
     answer = send_single_question(question, merged_context)
     return answer
-################################################################################################
+    
 def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
@@ -711,7 +735,7 @@ def main_loop(embeddings, questions_rag, chunks):
     prompt = system_prompt
     for i in range(len(questions_rag)):
         # if False:
-        if i == 28:
+        # if i > 25:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
@@ -731,6 +755,8 @@ def main_loop(embeddings, questions_rag, chunks):
             if questions_rag[i]["keyword"] == "Mandataire" or questions_rag[i]["keyword"] == "Type":
                 # prompt = prompt_mandataire
                 merged_context += "\n\n" + header
+            elif questions_rag[i]["keyword"] == "json":
+                merged_context = answer
             else:
                 prompt = system_prompt
             print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)

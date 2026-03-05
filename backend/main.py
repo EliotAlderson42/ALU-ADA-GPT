@@ -334,6 +334,8 @@ async def upload_pdf(file: UploadFile = File(...)):
         # if True:
         #     exit()
         chunk_embeddings = []
+        if len(chunks) > 200:
+            return
         for c in chunks:
             emb = ollama.embeddings(
                 model="nomic-embed-text",
