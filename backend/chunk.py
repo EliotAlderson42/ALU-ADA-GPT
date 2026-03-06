@@ -132,7 +132,7 @@ questions_rag = [
         "keyword": "Compétences"
     },
     {
-        "llm": "Combien de références professionnelles minimum sont demandées à l’architecte dans le cadre de la candidature ?",
+        "llm": "Combien de références professionnelles au total sont demandées au groupement dans le cadre de la candidature ? Detail en disant combien de references pqr cqtegorie et quel categorie si cela est possible",
         "rerank": "Combien de références sont demandées à l’architecte?",
         "user": "Combien de références minimum sont demandées a l'architecte?",
         "keyword": "Références"
@@ -200,28 +200,25 @@ questions_rag = [
         "user": "ref",
         "keyword": "Références"
     },
-    {
-        "llm": """
-Tu es un extracteur d'information agissant sur des appels d'offres.
-Tu dois m'extraire toutes les informations concernant des références voulue.
-Schéma attendu :
+#     {
+#         "llm": """
+# Tu es un extracteur d'information agissant sur des appels d'offres.
+# Tu dois m'extraire toutes les informations concernant des références voulue.
+# Schéma attendu :
 
-{
-  "role": "string | null",
-  "nature_operation": "rehabilitation | renovation_thermique | neuf | null",
-  "site_occupe": "true | false | null",
-  "sdp_min": "number | null",
-  "typologie": "enseignement_secondaire | enseignement_superieur | erp | null | logements",
-  "date_projet": "number | null",
-  "performance_energetique": {
-      "cep_max": "number | null",
-      "demarche": "e3c1 | cre | mgp | null"
-  }
-}""",
-        "rerank": "0",
-        "user": "0",
-        "keyword": "json"
-    }
+# {
+#   "role": "string | null",
+#   "nature_operation": "rehabilitation | renovation_thermique | neuf | null | etc..",
+#   "site_occupe": "true | false | null | etc..",
+#   "surface_minimum": "number | null",
+#   "type_infrastructure": "enseignement_secondaire | enseignement_superieur | gymnase | null | logements | etc...",
+#   "ancienneté_max_projet": "number | null",
+
+# }""",
+#         "rerank": "0",
+#         "user": "0",
+#         "keyword": "json"
+#     }
     # {
     #     "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
     #     "rerank": "Critères d’appréciation ou d’évaluation d’une offre avec pondération ou pourcentage (prix, valeur technique, délais).",
@@ -251,6 +248,157 @@ Règles ABSOLUES :
 # Ne devine jamais.
 
 # """
+
+# prompt_ref = """
+# Tu es un extracteur d'information agissant sur des appels d'offres.
+# Tu dois m'extraire toutes les informations concernant des références voulue.
+# Tes réponses doivent etre le plus concise possible.
+# Si tu peux répondre en te servant uniquement d'un des exemples, fais le.
+# Schéma attendu :
+
+# {
+#   "role": "string | null",
+#   "nature_operation": "rehabilitation | renovation_thermique | neuf | null | etc..",
+#   "site_occupe": "true | false | null | etc..",
+#   "surface_minimum": "number | null",
+#   "type_infrastructure": "enseignement_secondaire | enseignement_superieur | gymnase | null | logements | etc...",
+#   "ancienneté_max_projet": "number | null",
+
+# }"""
+
+
+# prompt_ref = """
+# Tu es un extracteur d'information spécialisé dans l'analyse d'appels d'offres publics qui répond uniquement en JSON strict.
+# Tous les extraits ne contiennent pas forcément d'information pertinentes.
+# Ne chercher pas a utiliser les infos de tous les extraits.
+
+# REGLES D'INTERPRETATION
+
+# Ancienneté :
+# - Si le texte contient "sur les X dernières années", retourner X dans "anciennete_max_projet".
+
+# Site occupé :
+# - Si le texte mentionne "site occupé", "établissement en fonctionnement" ou équivalent :
+#   site_occupe = Vrai
+
+# Nombre de références :
+# - Si le texte indique "X références par catégorie", alors 'nombre_références' de chaque catégorie = X.
+# - Si le nombre n'est pas explicite pour une catégorie : ?.
+
+# VALEURS MANQUANTES
+# Si une information n'est pas présente dans le texte :
+# retourner ?.
+
+# FORMAT DE SORTIE
+# Utilise UNIQUEMENT LES PROPOSITIONS FAITES DANS LE SCHEMA pour répondre, si aucune proposition ne correspond, repond : ?
+# Crée un nouveau JSON pour chaques categories differentes.
+# Aucune explication.
+# Aucun texte hors JSON.
+
+# Schéma :
+
+# {
+#   "catégorie": string |null,
+#   "nombre_références": number |null,
+#   "nature_operation": Réhabilitation | Neuve | Extension | Rénovation thermique |null,
+#   "site_occupe": True | False |null,
+#   "surface_minimum": number |null,
+#   "type_infrastructure": Logements | Sportif | Résidence | Tertiaire | Scolaire |null,
+#   "anciennete_max_projet": number |null,
+# }
+# """
+
+
+prompt_ref = """
+Tu es un système d'extraction d'information pour les appels d'offres publics.
+
+OBJECTIF
+Extraire uniquement les contraintes sur les références demandées aux candidats.
+
+IMPORTANT
+- N'invente jamais d'information.
+- Si l'information n'est pas clairement présente → retourner null.
+- Ne copie pas les phrases du texte.
+- Normalise les valeurs selon les listes autorisées.
+
+VALEURS AUTORISEES
+
+nature_operation :
+- Réhabilitation
+- Neuve
+- Extension
+- Rénovation thermique
+- null
+
+type_infrastructure :
+- Logements
+- Sportif
+- Résidence
+- Tertiaire
+- Scolaire
+- null
+
+site_occupe :
+- True
+- False
+- null
+
+REGLES D'INTERPRETATION
+
+Ancienneté
+Si le texte contient :
+"sur les X dernières années"
+→ anciennete_max_projet = X
+
+Site occupé
+Si le texte contient :
+- "site occupé"
+- "établissement en fonctionnement"
+
+→ site_occupe = True
+
+Infrastructure scolaire
+Si le texte mentionne :
+- école
+- collège
+- lycée
+- enseignement
+→ type_infrastructure = Scolaire
+
+Surface
+Si le texte contient :
+"SDP supérieure ou égale à X m²"
+→ surface_minimum = X
+
+Nombre de références
+Si le texte indique :
+"présentation de X références"
+
+→ nombre_références = X
+
+Sinon :
+→ nombre_références = null
+
+CREATION DES OBJETS
+
+Créer un objet JSON pour CHAQUE référence demandée.
+
+FORMAT DE SORTIE
+
+Répond uniquement avec un tableau JSON valide.
+
+Schéma :
+
+{
+  "catégorie": string | null,
+  "nombre_références": number | null,
+  "nature_operation": "Réhabilitation" | "Neuve" | "Extension" | "Rénovation thermique" | null,
+  "site_occupe": True | False | null,
+  "surface_minimum": number | null,
+  "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | null,
+  "anciennete_max_projet": number | null
+}
+"""
 
 system_prompt = """
 Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marchés publics.
@@ -472,12 +620,27 @@ def check_ollama_health():
 
 def send_playload(questions_rag, context, i, prompt, max_retries=3, timeout=120):
 
+    temperature = 1
+    
+    if questions_rag[i]["keyword"] == "Ville":
+        prompt = prompt_ville
+    elif questions_rag[i]["keyword"] == "Références":
+        prompt = prompt_ref
+        temperature = 0
+
     playload = {
         "model": "mistral:7b-instruct",
+        "stream": False, 
+        "options": {
+            "temperature": temperature,
+            "top_p": 0.8,
+            "num_ctx": 8192,
+            "repeat_penalty": 1.1,
+        },
         "messages": [
             {
                 "role": "system",
-                "content": system_prompt
+                "content": prompt
             },
             {
                 "role": "user",
@@ -490,29 +653,20 @@ QUESTION:
 """
             }
         ],
-        "stream": False, 
-        "options": {
-            "temperature": 1,
-            "top_p": 0.8,
-            "num_ctx": 8192,
-            "repeat_penalty": 1.1,
-        }     
     }
-    if questions_rag[i]["keyword"] == "Ville":
-        playload["messages"][0]["content"] = prompt_ville
     
     # Limiter la taille du contexte pour éviter les timeouts
     # max_context_length = 8000  # caractères max
     # if len(playload["messages"][1]["content"]) > max_context_length:
         # Tronquer le contexte si trop long
         # truncated_context = context[:max_context_length - 500] + "\n\n[... contexte tronqué ...]"
-    playload["messages"][1]["content"] = f"""
-CONTEXTE:
-{context}
+#     playload["messages"][1]["content"] = f"""
+# CONTEXTE:
+# {context}
 
-QUESTION:
-{questions_rag[i]["llm"]}
-"""
+# QUESTION:
+# {questions_rag[i]["llm"]}
+# """
     
     # Retry logic
     last_error = None
@@ -731,11 +885,12 @@ def main_loop(embeddings, questions_rag, chunks):
     epci = str()
     # print(f"TAILLE = {len(chunks)}")
     header = "HEADER: \n" + chunks[0]["text"] + "\n\n" + chunks[1]["text"]
+    # print(f"HEEADER == {header}")
     addMetaData(chunks, None)
     prompt = system_prompt
     for i in range(len(questions_rag)):
         # if False:
-        # if i > 25:
+        if i > 25:
             
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)

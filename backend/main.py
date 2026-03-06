@@ -337,6 +337,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         if len(chunks) > 200:
             return
         for c in chunks:
+            print(f"LOLILOL===={c["text"]}")
             emb = ollama.embeddings(
                 model="nomic-embed-text",
                 prompt=c["text"]

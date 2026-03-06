@@ -69,8 +69,8 @@ def cut_again(text, number):
         re.compile(r"^\d+\)"),    # 1)
         re.compile(r"^[a-z]\."),  # a.
         re.compile(r"^\d+\."),    # 1.
-        re.compile(r"^\d+-\d+"),    # 1-1
-        re.compile(r"^\d+\.\d+"),    # 1.1
+        re.compile(r"^\d+[.-]\d+"),    # 1-1
+        # re.compile(r"^\d+\.\d+"),    # 1.1
     ]
     text_list = text.split("\n")
     # for t in text_list:
@@ -108,7 +108,6 @@ def cut_by_segment(text):
     segments = text.split("\n")
 
     if "sommaire" in text.lower():
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n")
         segments = delete_sommaire(text)
 
     # SEGMENT_PATTERN = r"^\d+\.\d+(\.\d+)"
@@ -132,23 +131,13 @@ def cut_by_segment(text):
         if re.search(pattern[index], segment):
             cut = to_push.split(" ")
             if len(to_push) >= 5000:
-                # print(f"CUUUUUUUUUTIE == {cut[1]}")
-                # if cut[1] >= '0' and cut[1] <= '9':
-                #     lst = cut_again(to_push, int(cut[1]))
-                # else: 
-                # print(f"YOUHOOOOU = {to_push}")
                 lst = cut_again(to_push, None)
                 to_push = segment + "\n"
                 if isinstance(lst, str):
                     chunks.append(create_chunk(lst, id_chunk))
                     id_chunk += 1
-                # for y in lst:
-                #     print(f"PROBLEMOS=== {y}")
-                
                 else:
                     for l in lst:
-                    # if len(l) < 10:
-                    #     print(f"PROBLEME == {l}")
                         chunks.append(create_chunk(l, id_chunk))
                         id_chunk += 1
             else:
@@ -171,12 +160,5 @@ def cut_by_segment(text):
     else:
         chunks.append(create_chunk(to_push, id_chunk))
 
-    # for r in chunks:
-    #     print(r["text"])
-    #     print(f"TAILLE = {len(r["text"])}")
-    #     print("--------------------------------")
-    #     print("--------------------------------")
-    # print(f"TAILLE = {len(chunks)}")
-    # print(res)
     return chunks
 
