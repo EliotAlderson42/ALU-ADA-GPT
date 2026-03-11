@@ -59,17 +59,11 @@ def create_ref(row):
     # print(ref)
     return ref
 
-
-
-
 def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
     
     # res = db
     res = []
     data = pd.read_excel(path)
-    # print(data.head())
-    # print(data.columns)
-    # print(data.info())
     for row in data.values:
         res.append(create_ref(row))
         print("0000000000000000000000")
@@ -81,6 +75,7 @@ def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
         print(r)
         print("-----------------------------------------")
     print(f"TAAAAAILLE = {len(res)}")
+    return res
 
 
 def clear_row(row):

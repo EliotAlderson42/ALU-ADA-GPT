@@ -6,6 +6,7 @@ import requests
 import time
 import unicodedata
 import pysbd
+import prompt_list
 from backend import add_metadata
 from sentence_transformers import CrossEncoder
 from sklearn.cluster import KMeans
@@ -219,203 +220,13 @@ questions_rag = [
 #         "user": "0",
 #         "keyword": "json"
 #     }
-    # {
-    #     "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
-    #     "rerank": "Critères d’appréciation ou d’évaluation d’une offre avec pondération ou pourcentage (prix, valeur technique, délais).",
-    #     "keyword": "pourcentages"
-    # }
+    {
+        "llm": "Quels sont les critères d’appréciation ou d’évaluation mentionnés dans le texte et quels sont leurs pourcentages respectifs ?",
+        "rerank": "Critères d’appréciation ou d’évaluation d’une offre avec pondération ou pourcentage (prix, valeur technique, délais).",
+        "keyword": "pourcentages"
+    }
 ]
 
-prompt_ville = """
-Tu es un extracteur strict.
-Ta tâche est d’extraire UNE entité de type VILLE.
-
-Règles ABSOLUES :
-- La réponse doit contenir exactement un seul mot ou groupe de mots.
-- Ce mot doit être UNIQUEMENT le nom de la ville (ex: "Lyon", "Saint-Denis").
-- Il est INTERDIT d’inclure un code postal, un département, une région ou un pays.
-- Il est INTERDIT d’ajouter des commentaires, phrases ou explications.
-- Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
-- Ne donne aucun contexte."""
-
-# prompt_mandataire = """
-# Tu es un extracteur d’informations.
-
-# Tu dois toujours répondre uniquement avec un JSON valide.
-# Aucun texte en dehors du JSON.
-
-# Si une donnée est absente ou incertaine, mets null.
-# Ne devine jamais.
-
-# """
-
-# prompt_ref = """
-# Tu es un extracteur d'information agissant sur des appels d'offres.
-# Tu dois m'extraire toutes les informations concernant des références voulue.
-# Tes réponses doivent etre le plus concise possible.
-# Si tu peux répondre en te servant uniquement d'un des exemples, fais le.
-# Schéma attendu :
-
-# {
-#   "role": "string | null",
-#   "nature_operation": "rehabilitation | renovation_thermique | neuf | null | etc..",
-#   "site_occupe": "true | false | null | etc..",
-#   "surface_minimum": "number | null",
-#   "type_infrastructure": "enseignement_secondaire | enseignement_superieur | gymnase | null | logements | etc...",
-#   "ancienneté_max_projet": "number | null",
-
-# }"""
-
-
-# prompt_ref = """
-# Tu es un extracteur d'information spécialisé dans l'analyse d'appels d'offres publics qui répond uniquement en JSON strict.
-# Tous les extraits ne contiennent pas forcément d'information pertinentes.
-# Ne chercher pas a utiliser les infos de tous les extraits.
-
-# REGLES D'INTERPRETATION
-
-# Ancienneté :
-# - Si le texte contient "sur les X dernières années", retourner X dans "anciennete_max_projet".
-
-# Site occupé :
-# - Si le texte mentionne "site occupé", "établissement en fonctionnement" ou équivalent :
-#   site_occupe = Vrai
-
-# Nombre de références :
-# - Si le texte indique "X références par catégorie", alors 'nombre_références' de chaque catégorie = X.
-# - Si le nombre n'est pas explicite pour une catégorie : ?.
-
-# VALEURS MANQUANTES
-# Si une information n'est pas présente dans le texte :
-# retourner ?.
-
-# FORMAT DE SORTIE
-# Utilise UNIQUEMENT LES PROPOSITIONS FAITES DANS LE SCHEMA pour répondre, si aucune proposition ne correspond, repond : ?
-# Crée un nouveau JSON pour chaques categories differentes.
-# Aucune explication.
-# Aucun texte hors JSON.
-
-# Schéma :
-
-# {
-#   "catégorie": string |null,
-#   "nombre_références": number |null,
-#   "nature_operation": Réhabilitation | Neuve | Extension | Rénovation thermique |null,
-#   "site_occupe": True | False |null,
-#   "surface_minimum": number |null,
-#   "type_infrastructure": Logements | Sportif | Résidence | Tertiaire | Scolaire |null,
-#   "anciennete_max_projet": number |null,
-# }
-# """
-
-
-prompt_ref = """
-Tu es un système d'extraction d'information pour les appels d'offres publics.
-
-OBJECTIF
-Extraire uniquement les contraintes sur les références demandées aux candidats.
-
-IMPORTANT
-- N'invente jamais d'information.
-- Si l'information n'est pas clairement présente → retourner null.
-- Ne copie pas les phrases du texte.
-- Normalise les valeurs selon les listes autorisées.
-
-VALEURS AUTORISEES
-
-nature_operation :
-- Réhabilitation
-- Neuve
-- Extension
-- Rénovation thermique
-- null
-
-type_infrastructure :
-- Logements
-- Sportif
-- Résidence
-- Tertiaire
-- Scolaire
-- null
-
-site_occupe :
-- True
-- False
-- null
-
-REGLES D'INTERPRETATION
-
-Ancienneté
-Si le texte contient :
-"sur les X dernières années"
-→ anciennete_max_projet = X
-
-Site occupé
-Si le texte contient :
-- "site occupé"
-- "établissement en fonctionnement"
-
-→ site_occupe = True
-
-Infrastructure scolaire
-Si le texte mentionne :
-- école
-- collège
-- lycée
-- enseignement
-→ type_infrastructure = Scolaire
-
-Surface
-Si le texte contient :
-"SDP supérieure ou égale à X m²"
-→ surface_minimum = X
-
-Nombre de références
-Si le texte indique :
-"présentation de X références"
-
-→ nombre_références = X
-
-Sinon :
-→ nombre_références = null
-
-CREATION DES OBJETS
-
-Créer un objet JSON pour CHAQUE référence demandée.
-
-FORMAT DE SORTIE
-
-Répond uniquement avec un tableau JSON valide.
-
-Schéma :
-
-{
-  "catégorie": string | null,
-  "nombre_références": number | null,
-  "nature_operation": "Réhabilitation" | "Neuve" | "Extension" | "Rénovation thermique" | null,
-  "site_occupe": True | False | null,
-  "surface_minimum": number | null,
-  "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | null,
-  "anciennete_max_projet": number | null
-}
-"""
-
-system_prompt = """
-Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marchés publics.
-Tu extrais uniquement des informations factuelles présentes dans le contexte (texte du document fourni ci-dessous).
-
-Règles de fond :
-- N'INVENTE JAMAIS AUCUNE INFORMATION.
-- S'il y a plusieurs questions, réponds uniquement à celles dont la réponse figure dans le texte fourni ; ignore les autres. Donne une réponse par question, sans préfixe ("Réponse :", "La réponse est :", etc.).
-- Si l'information n'est pas renseignée dans le texte fourni, réponds uniquement : "Information non précisée".
-- Chiffres, montants, numéros de téléphones et dates : restitue-les tels qu'ils apparaissent (unités, symboles €, format) sans reformuler ni approximer.
-- En cas d'ambiguïté, donne la réponse la plus cohérente avec le contexte, sans inventer.
-
-Format de réponse :
-- Réponse courte et factuelle.
-- Pas d'explication ni de phrase d'introduction.
-- Réponds uniquement par la réponse attendue, sans formule ni commentaire.
-"""
 
 ##Fonction pour retrier plus pointilleusement les n meilleurs chunks 
 def rerank(question, chunks):
@@ -449,7 +260,6 @@ def nettoyer_caracteres_repetes(text):
     text = re.sub(r" *\n *", "\n", text)
     # print("SALUT 2")
     return text.strip()
-
 
 ##Fonction pour decouper mon pdf en plusieurs petits bouts lisible pour eviter de trop consommer
 def chunk_text(text, chunk_size=300, overlap=50):
@@ -587,49 +397,19 @@ reranker = CrossEncoder("BAAI/bge-reranker-large")
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
-def check_ollama_health():
-    """Vérifie que Ollama est accessible et que le modèle existe."""
-    try:
-        # Vérifier que le serveur Ollama répond
-        health_url = "http://localhost:11434/api/tags"
-        response = requests.get(health_url, timeout=5)
-        response.raise_for_status()
-        
-        # Vérifier que le modèle existe
-        models = response.json().get("models", [])
-        model_names = [m.get("name", "") for m in models]
-        required_model = "mistral:7b-instruct"
-        
-        if required_model not in model_names:
-            available = ", ".join(model_names[:5]) if model_names else "aucun"
-            raise Exception(
-                f"Modèle '{required_model}' non trouvé. "
-                f"Modèles disponibles: {available}. "
-                f"Installe-le avec: ollama pull {required_model}"
-            )
-        
-        return True
-    except requests.exceptions.ConnectionError:
-        raise Exception(
-            "Ollama n'est pas accessible à http://localhost:11434. "
-            "Assure-toi qu'Ollama est démarré: ollama serve"
-        )
-    except Exception as e:
-        raise Exception(f"Erreur lors de la vérification d'Ollama: {str(e)}")
-
 
 def send_playload(questions_rag, context, i, prompt, max_retries=3, timeout=120):
 
     temperature = 1
-    
+
     if questions_rag[i]["keyword"] == "Ville":
-        prompt = prompt_ville
+        prompt = prompt_list.VILLE
     elif questions_rag[i]["keyword"] == "Références":
-        prompt = prompt_ref
+        prompt = prompt_list.REFERENCE
         temperature = 0
 
     playload = {
-        "model": "mistral:7b-instruct",
+        "model": "llama3.1:8b",
         "stream": False, 
         "options": {
             "temperature": temperature,
@@ -654,21 +434,6 @@ QUESTION:
             }
         ],
     }
-    
-    # Limiter la taille du contexte pour éviter les timeouts
-    # max_context_length = 8000  # caractères max
-    # if len(playload["messages"][1]["content"]) > max_context_length:
-        # Tronquer le contexte si trop long
-        # truncated_context = context[:max_context_length - 500] + "\n\n[... contexte tronqué ...]"
-#     playload["messages"][1]["content"] = f"""
-# CONTEXTE:
-# {context}
-
-# QUESTION:
-# {questions_rag[i]["llm"]}
-# """
-    
-    # Retry logic
     last_error = None
     for attempt in range(max_retries):
         try:
@@ -737,7 +502,7 @@ QUESTION:
 def send_single_question(question, context, prompt=None, max_retries=3, timeout=120):
     """Envoie une seule question au LLM avec le contexte donné (pour question supplémentaire)."""
     if prompt is None:
-        prompt = system_prompt
+        prompt = prompt_list.SYSTEM
     payload = {
         "model": "mistral:7b-instruct",
         "messages": [
@@ -838,7 +603,7 @@ def match_metadata(keyword, chunks, embeddings):
     elif keyword == "Film":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_film"]]
     elif keyword == "Références":
-        print(f"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+        # print(f"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_references"]]
     elif keyword == "Tranches":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_tranches"]]
@@ -883,11 +648,11 @@ def main_loop(embeddings, questions_rag, chunks):
     q_r = {}
     data = [()]
     epci = str()
-    # print(f"TAILLE = {len(chunks)}")
+
     header = "HEADER: \n" + chunks[0]["text"] + "\n\n" + chunks[1]["text"]
-    # print(f"HEEADER == {header}")
+    prompt = prompt_list.SYSTEM
     addMetaData(chunks, None)
-    prompt = system_prompt
+    
     for i in range(len(questions_rag)):
         # if False:
         if i > 25:
@@ -895,45 +660,33 @@ def main_loop(embeddings, questions_rag, chunks):
             question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=questions_rag[i]["rerank"])["embedding"])
             data_embed, candidats = match_metadata(questions_rag[i]["keyword"], chunks, embeddings)
             similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
-            top_10 = np.argsort(similarities)[-10:][::-1]
-            
+            top_10 = np.argsort(similarities)[-10:][::-1]        
             best_chunks = []
+
             for idx in top_10:
                 best_chunks.append(candidats[idx]["text"])
-            # print("SALUT")
-            
+
             reranked_chunks = rerank(questions_rag[i]["rerank"], best_chunks)[:2]
-            # if questions_rag[i]["keyword"] == "Mandataire":
-            #     merged_context = header
-            # else:
             merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
             if questions_rag[i]["keyword"] == "Mandataire" or questions_rag[i]["keyword"] == "Type":
-                # prompt = prompt_mandataire
                 merged_context += "\n\n" + header
             elif questions_rag[i]["keyword"] == "json":
                 merged_context = answer
-            else:
-                prompt = system_prompt
+
             print(f"QUESTION = {questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
             print(f"Questions n° {i + 1}/{len(questions_rag)}")
+
             answer = send_playload(questions_rag, merged_context, i, prompt)
+
             if questions_rag[i]["keyword"] == "Ouvrage":
                 id_ouvrage = answer 
-
-            # if questions_rag[i]["keyword"] == "Ville":
-            #     epci = get_epci(answer)["nom"]
-            #     answer = epci + "\n" + answer
             
             if questions_rag[i]["keyword"] == "Mandataire":
-                # total_id = epci + "\n" + id_ouvrage + "\n" + answer
                 data.append(("acheteurId", answer))
 
             elif questions_rag[i]["keyword"] == "Type d'opération":
-                etat = [False, False, 0]
                 data.append(("operationType", answer))
-                # data.append(("Objet de la candidature", etat))
-                # data.append(("Présentation du candidat", ""))
-            
+                            
             q_r[questions_rag[i]["user"]] = answer
     
     return q_r, data
