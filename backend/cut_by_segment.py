@@ -33,7 +33,7 @@ def create_chunk(text, id):
     return {
         "text": text,
         "metadata": {
-            "id": 0,
+            "id": id,
             "has_postal_code": False,
             "has_price": False,
             "has_date": False,
@@ -67,16 +67,18 @@ def cut_again(text, number):
     patterns = [
         re.compile(r"^[a-z]\)", re.IGNORECASE),  # a)
         re.compile(r"^\d+\)"),    # 1)
-        re.compile(r"^[a-z]\."),  # a.
+        re.compile(r"^[a-z]\.", re.IGNORECASE),  # a.
         re.compile(r"^\d+\."),    # 1.
         re.compile(r"^\d+[.-]\d+"),    # 1-1
+        re.compile(r"^\d+°"),
         # re.compile(r"^\d+\.\d+"),    # 1.1
     ]
     text_list = text.split("\n")
     # for t in text_list:
         # print(f"COUUUUPER === {t}")
-
-    for texte in text_list:
+    # save = text_list[0]
+    # text_list.pop(0)
+    for texte in text_list[1:]:
         for pattern in patterns:
             if re.search(pattern, texte):
                 print(f"PHRAAAAAAASE = {texte}")
@@ -89,7 +91,7 @@ def cut_again(text, number):
         print(f"INDEX == {index} DEBUT === {text_list[0]}")
     if exxit == 1:
         for texte in text_list:
-            if re.search(patterns[index], texte):
+            if re.search(patterns[index], texte) and len(texte) > 0:
                 res.append(to_push)
                 to_push = texte + "\n"
             else:
@@ -103,6 +105,7 @@ def cut_by_segment(text):
     # extract_db()
     # return 0
     to_push = ""
+    num = 0
     # res = []
     chunks = []
     segments = text.split("\n")
@@ -111,10 +114,13 @@ def cut_by_segment(text):
         segments = delete_sommaire(text)
 
     # SEGMENT_PATTERN = r"^\d+\.\d+(\.\d+)"
-    start = ["ARTICLE", "SEGMENT"]
+    start = ["ARTICLE", "SEGMENT", "1.", "SECTION"]
+    # print(f"TO_KNOW == {int(start[2]) + 1}")
     pattern = [
          re.compile(r"^Article\s+(\d+|[IVXLCDM]+)", re.IGNORECASE),
          re.compile(r"^Segment\s+(\d+|[IVXLCDM]+)", re.IGNORECASE),
+         re.compile(r"^\d\.\s"),
+         re.compile(r"^Section\s+(\d+|[IVXLCDM]+)", re.IGNORECASE),
     ]
 
 
@@ -124,23 +130,26 @@ def cut_by_segment(text):
         mots = segment.split(" ")
         if mots[0].upper() in start:
             index = start.index(mots[0].upper())
+            if index == 2:
+                num = 1
             break      
 
 
     for segment in segments:
         if re.search(pattern[index], segment):
-            cut = to_push.split(" ")
+            # cut = to_push.split(" ")
             if len(to_push) >= 5000:
                 lst = cut_again(to_push, None)
                 to_push = segment + "\n"
-                if isinstance(lst, str):
+                if isinstance(lst, str) and len(lst) > 0:
                     chunks.append(create_chunk(lst, id_chunk))
                     id_chunk += 1
                 else:
                     for l in lst:
-                        chunks.append(create_chunk(l, id_chunk))
-                        id_chunk += 1
-            else:
+                        if len(l) > 0:
+                            chunks.append(create_chunk(l, id_chunk))
+                            id_chunk += 1
+            elif len(to_push) > 0:
                 chunks.append(create_chunk(to_push, id_chunk))
                 to_push = segment + "\n"
                 id_chunk += 1
@@ -159,6 +168,23 @@ def cut_by_segment(text):
             id_chunk += 1
     else:
         chunks.append(create_chunk(to_push, id_chunk))
-
-    return chunks
+    res = []
+    id = 0
+    for chunk in chunks:
+        if len(chunk["text"]) > 5000:
+            lst = cut_again(chunk["text"], None)
+            if isinstance(lst, str):
+                res.append(chunk)
+                id += 1
+            else:
+                for l in lst:
+                    print(f"CUTLIST == {l}")
+                    res.append(create_chunk(l, id))
+                    id += 1
+        else:
+            res.append(chunk)
+            id += 1
+        # for r in res:
+        #     print(f"lenchunk = {len(r["text"])} content = {r["text"]}")
+    return res
 

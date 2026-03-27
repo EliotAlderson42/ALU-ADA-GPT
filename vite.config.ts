@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       // Même port que dans src/config.ts (API_BASE)
       '/api': {
-        target: 'http://127.0.0.1:8011',
+        target: 'http://127.0.0.1:8015',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

@@ -59,8 +59,18 @@ def create_ref(row):
     # print(ref)
     return ref
 
+def give_score(json, db):
+    score_tab = []
+    for ref in db:
+        score = 0
+        for key, value in ref.items():
+            if json[key] == value:
+                score += 1
+        score_tab.append(score)
+    return score_tab
+
+
 def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
-    
     # res = db
     res = []
     data = pd.read_excel(path)
@@ -81,4 +91,7 @@ def extract_db(path="backend/Documents/DB_PROJETS_ALU.xlsx"):
 def clear_row(row):
     row = row.replace("'", "")
     row = row.split()
+
+
+# def match_references(json):
 

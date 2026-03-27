@@ -170,3 +170,80 @@ def add_operation_type_metadata(chunk):
 def add_keyword_metadata(chunk, keyword):
     if keyword in chunk["text"]:
         chunk["metadata"]["has_keyword"] = True
+
+def addMetaData(chunks, keyword):
+    for chunk in chunks:
+        add_price_metadata(chunk)
+        add_date_metadata(chunk)
+        add_postal_code_metadata(chunk)
+        add_offer_type_metadata(chunk)
+        add_nature_operation_metadata(chunk)
+        add_master_work_metadata(chunk)
+        add_mandataire_metadata(chunk)
+        add_exclusivity_metadata(chunk)
+        add_visite_metadata(chunk)
+        add_competences_metadata(chunk)
+        add_missions_metadata(chunk)
+        add_maquette_metadata(chunk)
+        add_film_metadata(chunk)
+        add_references_metadata(chunk)
+        add_tranches_metadata(chunk)
+        add_second_deadline_metadata(chunk)
+        add_number_metadata(chunk)
+        add_operation_type_metadata(chunk)
+        add_mandataire_requis_metadata(chunk)
+        if keyword != None:
+            add_keyword_metadata(chunk, keyword)
+        # add_metadata.add_intervention_metadata(chunk)   
+        # return chunks
+
+def match_metadata(keyword, chunks, embeddings):
+    candidats = []
+    candidats_emb = []
+    # addMetaData(chunks)
+    if keyword in ("limite1", "Limite2", "limite2", "questions"):
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_date"]]
+    elif keyword == "Travaux":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_price"]]
+    elif keyword == "Département":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_postal_code"]]
+    elif keyword == "Type":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_offer_type"]]
+    elif keyword == "Nature":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_nature_operation"]]
+    elif keyword == "Master_work":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_master_work"]]
+    elif keyword == "Mandataire":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire"]]
+    elif keyword == "Mandataire-requis":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_mandataire_requis"]]
+    elif keyword == "Exclusivité":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_exclusivity"]]
+    elif keyword == "Visite":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_visite"]]
+    elif keyword == "Compétences":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_competences"]]
+    elif keyword == "Missions":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_missions"]]
+    elif keyword == "Maquette":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_maquette"]]
+    elif keyword == "Film":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_film"]]
+    elif keyword == "Références":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_references"]]
+    elif keyword == "Tranches":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_tranches"]]
+    elif keyword == "Intervention":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_intervention"]]
+    elif keyword == "Seconde échéance":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_second_deadline"]]
+    elif keyword == "Numéro":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_number"]]
+    elif keyword == "Type d'opération":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_operation_type"]]
+    else:
+        return embeddings, chunks
+    candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]
+    # if len(candidats) == 0:
+    #     return candidats_emb, candidats
+    return candidats_emb, candidats
