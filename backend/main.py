@@ -333,6 +333,13 @@ async def upload_pdf(file: UploadFile = File(...)):
         #     print("--------------------------------")
         # if True:
         #     exit()
+        # for c in chunks:
+
+        #     print(f"TAILLE DU CHUNK = {len(c['text'])}; ID DU CHUNK == {c["metadata"]["id"]}")
+        #     # if c ["metadata"]["id"] == 22 or c ["metadata"]["id"] == 33 or c ["metadata"]["id"] == 39:
+        #         # print(f"TEXT DU CHUNK = {c['text']}")
+        #         # print("--------------------------------")
+        # return 0
         chunk_embeddings = []
         # if len(chunks) > 200:
         #     return

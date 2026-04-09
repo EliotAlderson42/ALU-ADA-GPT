@@ -1,0 +1,74 @@
+                            CREATION DE LA NOTE METHODOLOGIQUE:
+
+
+SOLUTION NUMERO 1: 
+Creer un format de notes methodo
+
+avantages: Simple a mettre en place, implication humaine minimum, moins d'appels api = generation plus rapide
+inconvéniants : Précision de la note amoindri, Dur de mettre certains champs en avant 
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+SOLUTION NUMERO 2:
+Laisser l'utilisateur creer tous les champs dont il compte parler dans la note + rajout de contexte
+
+avantages: Beaucoup plus précis, Simple a mettre en place
+inconvéniants: Implication utilisateur plus élévé
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+SOLUTION NUMERO 3:
+Laisser le LLM organiser le format de la note(chaque "chapitre")
+
+avantages: quasi 0 implication humaine
+inconveniants: Sureté de la qualité, rigueur, + de call api = plus de Temps, , possibilité de devoir passer par un llm axterne
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+SOLUTION NUMERO 4:
+Faire une roadmap detaillé de la création de la note methodologique pour que je puisse m'aider de celle ci pour construire la note SECOND_DEADLINE_PATTERN
+
+avantages: Comprendre a partir de quoi une note metodo est realiser, resultat plus précis(je pense).
+inconveniants:Temps de realisation de la road map, temps de compréhension et realisation de ma part plus long
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+AVANTAGES GENERALE = Gain de temps sur le long terme
+
+INCONVENIANTS GENERALE = 
+- Pas sur de pouvoir entrainer le modele sur certains chapitres de notes methodologique trop longs ca dépasserait
+ la limite du contexte
+- La procedure restera tres lente, proche d'1h selon la longueur de la note produite.
+- Je ne suis pas sur que ce soit realisable dans les conditions actuelles
+
+
+                        CHAPITRES POUVANT ETRE AUTOMATISER:
+1 - Moyen Humains et Technique:
+Juste besoin de mettre chaque employé avec photo + comptétence dans un db et decider d'un format d'affichage et d'un ordre d'affichage
+2 - Presentation de l'equipe:
+Pareil
+3 - Methode de communication:
+J'imagine que le texte reste le meme peu importe le sujet
+4 - Organigramme:
+Meme principe que pour "Moyens humains et technique"
+5 - Methodologie de conception:
+J'ai l'impression que la descriptions de chaque "skill" n'est pas lié directement au projet. On pourrait faire un db de chaque skill avec sa definition et appeler seulement ceux demander au moment de la creation
+6 - 
+
+
+-------------------------------------------------------------------------------------------------
+                                    FORMAT
+1- En tete (Nom du projet, possiblement photo, logo etc..)
+
+2- Petit texte de mise en bouche ventant les qualités
+
+3- Notre Philosophie et motivation (Exprime a quel point la problematique du projet est notre combat au quotidien)
+
+4- Compréhension du programme (Description rapide du projet, Les objectifs visees sont:(Description des objectifs visee), Les parties prenantes du projets sont: (), )
+
+5- Methodologies et organisation: 
+    1- Tableau Phase/Livrables/Delais
+    2- Moyens humains affecter au projet (organigramme possible)
+    3- Role des intervenants
+    4- Implication des membres de l'iequipe durant la mission (tableau)
+    5- Demarche qualité
+
+6- Environnement (probable)
+
+7- Technique social et organisationnelle
+
+8- Reference de la maitrise d'oeuvre (petits descriptif avec les utiliser et listes des references avec les petites images pour ettayer les propos)
+

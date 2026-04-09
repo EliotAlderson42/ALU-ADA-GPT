@@ -47,53 +47,6 @@ def nettoyer_caracteres_repetes(text):
     # print("SALUT 2")
     return text.strip()
 
-# ##Fonction pour decouper mon pdf en plusieurs petits bouts lisible pour eviter de trop consommer
-# def chunk_text(text, chunk_size=300, overlap=50):
-#     words = text.split()
-#     chunks = []
-#     start = 0
-#     i = 0
-
-#     while start < len(words):
-#         end = start + chunk_size
-
-#         chunk_text_str = " ".join(words[start:end])
-
-#         chunk = {
-#             "text": chunk_text_str,
-#             "metadata": {
-#                 "id": i,
-#                 "has_postal_code": False,
-#                 "has_price": False,
-#                 "has_date": False,
-#                 "has_offer_type": False,
-#                 "has_nature_operation": False,
-#                 "has_master_work": False,
-#                 "has_mandataire": False,
-#                 "has_mandataire_requis": False,
-#                 "has_exclusivity": False,
-#                 "has_visite": False,
-#                 "has_competences": False,
-#                 "has_missions": False,
-#                 "has_maquette": False,
-#                 "has_film": False,
-#                 "has_references": False,
-#                 "has_tranches": False,
-#                 "has_second_deadline": False,
-#                 "has_number": False,
-#                 "has_operation_type": False,
-#                 "has_keyword": False,
-#                 # "has_intervention": False,
-#             },
-#         }
-
-#         chunks.append(chunk)
-
-#         start += chunk_size - overlap
-#         i += 1
-
-#     return chunks
-
 
 ##################################################################################################
 # def travel_time(ville):
@@ -171,7 +124,7 @@ def send_playload(questions_rag, context, i, prompt, max_retries=3, timeout=120)
         temperature = 0
 
     playload = {
-        "model": "llama3.1:8b",
+        "model": "gemma4:e4b",
         "stream": False, 
         "options": {
             "temperature": temperature,
@@ -358,43 +311,45 @@ def main_loop(embeddings, questions_rag, chunks):
     header = "HEADER: \n" + chunks[0]["text"] + "\n\n" + chunks[1]["text"]
     prompt = prompt_list.SYSTEM
     add_metadata.addMetaData(chunks, None)
-
+    # for chunk in chunks:
+    #     print(f"TAILLE DU CHUNK = {len(chunk['text'])}; ID DU CHUNK == {chunk["metadata"]["id"]}")
+    # return 0
     for i in range(len(prompt_list.questions_rag)):
-            if i > 25: 
-                print(f"KEYWORD = {prompt_list.questions_rag[i]['keyword']}")
+            # if i == 28: 
+            print(f"KEYWORD = {prompt_list.questions_rag[i]['keyword']}")
 
-                question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=prompt_list.questions_rag[i]["rerank"])["embedding"])
-                data_embed, candidats = add_metadata.match_metadata(prompt_list.questions_rag[i]["keyword"], chunks, embeddings)
-                print(f"TAILLE CANDIDATS = {len(candidats)}")
-                for c in candidats:
-                    print(f"ID == {c['metadata']['id']}")
-                    print(f"TEXT == {c['text']}")
-                    print("--------------------------------")
-                similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
-                top_10 = np.argsort(similarities)[-10:][::-1]        
-                best_chunks = []
+            question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=prompt_list.questions_rag[i]["rerank"])["embedding"])
+            data_embed, candidats = add_metadata.match_metadata(prompt_list.questions_rag[i]["keyword"], chunks, embeddings)
+            print(f"TAILLE CANDIDATS = {len(candidats)}")
+            # for c in candidats:
+            #     print(f"ID == {c['metadata']['id']}")
+            #     print(f"TEXT == {c['text']}")
+            #     print("--------------------------------")
+            similarities = [cosine_similarity(question_emb, emb) for emb in data_embed]
+            top_10 = np.argsort(similarities)[-10:][::-1]        
+            best_chunks = []
 
-                for idx in top_10:
-                    best_chunks.append(candidats[idx]["text"])
+            for idx in top_10:
+                best_chunks.append(candidats[idx]["text"])
 
-                reranked_chunks = rerank(prompt_list.questions_rag[i]["rerank"], best_chunks)[:2]
-                merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
-                if prompt_list.questions_rag[i]["keyword"] == "Mandataire" or prompt_list.questions_rag[i]["keyword"] == "Type":
-                    merged_context += "\n\n" + header
-                elif prompt_list.questions_rag[i]["keyword"] == "json":
-                    merged_context = answer
+            reranked_chunks = rerank(prompt_list.questions_rag[i]["rerank"], best_chunks)[:2]
+            merged_context = "\n\n".join(f"EXTRAIT{j + 1}:\n{chunk[0]}" for j, chunk in enumerate(reranked_chunks))
+            if prompt_list.questions_rag[i]["keyword"] == "Mandataire" or prompt_list.questions_rag[i]["keyword"] == "Type":
+                merged_context += "\n\n" + header
+            elif prompt_list.questions_rag[i]["keyword"] == "json":
+                merged_context = answer
 
-                print(f"QUESTION = {prompt_list.questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
-                print(f"Questions n° {i + 1}/{len(prompt_list.questions_rag)}")
+            print(f"QUESTION = {prompt_list.questions_rag[i]['llm']}\n\nmerged_context = {merged_context}", flush=True)
+            print(f"Questions n° {i + 1}/{len(prompt_list.questions_rag)}")
 
-                answer = send_playload(prompt_list.questions_rag, merged_context, i, prompt)
+            answer = send_playload(prompt_list.questions_rag, merged_context, i, prompt)
 
-                if prompt_list.questions_rag[i]["keyword"] == "Mandataire":
-                    data.append(("acheteurId", answer))
+            if prompt_list.questions_rag[i]["keyword"] == "Mandataire":
+                data.append(("acheteurId", answer))
 
-                elif prompt_list.questions_rag[i]["keyword"] == "Type d'opération":
-                    data.append(("operationType", answer))
-                                
-                q_r[prompt_list.questions_rag[i]["user"]] = answer
+            elif prompt_list.questions_rag[i]["keyword"] == "Type d'opération":
+                data.append(("operationType", answer))
+                            
+            q_r[prompt_list.questions_rag[i]["user"]] = answer
     
     return q_r, data

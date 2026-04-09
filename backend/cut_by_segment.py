@@ -3,6 +3,52 @@ import re
 import unicodedata
 from backend.extract_tab import extract_db
 
+def chunk_text(text, chunk_size=300, overlap=50):
+    words = text.split()
+    chunks = []
+    start = 0
+    i = 0
+
+    while start < len(words):
+        end = start + chunk_size
+
+        chunk_text_str = " ".join(words[start:end])
+
+        # chunk = {
+        #     "text": chunk_text_str,
+        #     "metadata": {
+        #         "id": i,
+        #         "has_postal_code": False,
+        #         "has_price": False,
+        #         "has_date": False,
+        #         "has_offer_type": False,
+        #         "has_nature_operation": False,
+        #         "has_master_work": False,
+        #         "has_mandataire": False,
+        #         "has_mandataire_requis": False,
+        #         "has_exclusivity": False,
+        #         "has_visite": False,
+        #         "has_competences": False,
+        #         "has_missions": False,
+        #         "has_maquette": False,
+        #         "has_film": False,
+        #         "has_references": False,
+        #         "has_tranches": False,
+        #         "has_second_deadline": False,
+        #         "has_number": False,
+        #         "has_operation_type": False,
+        #         "has_keyword": False,
+        #         # "has_intervention": False,
+        #     },
+        # }
+
+        chunks.append(chunk_text_str)
+
+        start += chunk_size - overlap
+        i += 1
+
+    return chunks
+
 def middle_split(text):
     res = []
     length = len(text) // 2
@@ -71,6 +117,8 @@ def cut_again(text, number):
         re.compile(r"^\d+\."),    # 1.
         re.compile(r"^\d+[.-]\d+"),    # 1-1
         re.compile(r"^\d+°"),
+        re.compile(r"^[a-z]\-", re.IGNORECASE),  # a-
+        re.compile(r"^Dossier\s+(\d+|[IVXLCDM]+)", re.IGNORECASE),
         # re.compile(r"^\d+\.\d+"),    # 1.1
     ]
     text_list = text.split("\n")
@@ -89,6 +137,8 @@ def cut_again(text, number):
             break
     if index:    
         print(f"INDEX == {index} DEBUT === {text_list[0]}")
+    elif index == -1:
+        return chunk_text(text)
     if exxit == 1:
         for texte in text_list:
             if re.search(patterns[index], texte) and len(texte) > 0:

@@ -126,13 +126,14 @@ def add_film_metadata(chunk):
         chunk["metadata"]["has_film"] = True
 
 def add_references_metadata(chunk):
-    REFERENCES_PATTERN = re.compile(
-        r"\b(?:références|références professionnelles|référence)\b",
-        re.IGNORECASE,
-    )
+    # REFERENCES_PATTERN = re.compile(
+    #     r"\b(?:références)\b",
+    #     re.IGNORECASE,
+    # )
     # Normaliser en NFC pour matcher même si le PDF a fourni du NFD (é = e + accent)
-    text_nfc = unicodedata.normalize("NFC", chunk["text"])
-    if re.search(REFERENCES_PATTERN, text_nfc):
+    # text_nfc = unicodedata.normalize("NFC", chunk["text"])
+    # if re.search(REFERENCES_PATTERN, chunk["text"]):
+    if "références" in chunk["text"]:
         chunk["metadata"]["has_references"] = True
 
 def add_tranches_metadata(chunk):
@@ -230,6 +231,7 @@ def match_metadata(keyword, chunks, embeddings):
     elif keyword == "Film":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_film"]]
     elif keyword == "Références":
+        print("YOUHOOOOU")
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_references"]]
     elif keyword == "Tranches":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_tranches"]]

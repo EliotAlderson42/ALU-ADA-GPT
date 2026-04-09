@@ -1,146 +1,249 @@
 import os
 
-# REFERENCE= """
-# Tu extrais les références demandées dans un appel d'offres.
 
-# Règles :
+# REFERENCE = """
 
-# - Répond uniquement avec un JSON.
-# - Ne copie jamais le texte.
-# - Si l'information n'existe pas → null.
-# - Si l'information existe mais n'a pas d'equivalent dans la liste fourni pour remplir le json, remplis avec "null"
-# - Si le texte propose plusieurs options pour un champ, prends **uniquement le premier choix valide** selon la liste autorisée pour ce champ.
+# # Nouveau prompt "REFERENCE" (utilisé par le backend)
+# Tu es un extracteur strict.
+# Ta mission : extraire, depuis le CONTEXTE, les informations relatives aux références exigées dans l'appel d'offres.
 
-# Interdiction:
-# - Toute valeur hors "Valeurs autorisées"
+# CONTRAINTES DE SORTIE (STRICTES) :
+# 1) Réponds EXCLUSIVEMENT avec un JSON valide et rien d'autre (aucun texte avant/après, aucune balise Markdown, aucun commentaire).
+# 2) Le JSON doit être un tableau (liste) d'objets.
+# 3) Si aucune information de références n'est trouvée : renvoie `[]`.
+# 4) Si une information de champ manque pour un objet donné : renvoie `null` pour ce champ.
 
-# Valeurs autorisées :
+# STRUCTURE DE SORTIE :
+# [
+#   {
+#     "catégorie": string | null,
+#     "nombre_références": number | null,
+#     "nature_operation": "Réhabilitation" | "Neuve" | "Extension" | "Rénovation thermique" | null,
+#     "site_occupe": true | false | null,
+#     "surface_SDP_minimum": number | null,
+#     "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | "Commerce" | null,
+#     "anciennete_max_projet": number | null
+#   }
+# ]
 
-# nature_operation :
-# Réhabilitation | Neuve | Extension | Rénovation thermique | null
-# exemple:
-# réhabilitation | rénovation | restructuration → Réhabilitation
-# construction neuve → Neuve
-# extension | agrandissement → Extension
-# rénovation énergétique | rénovation thermique → Rénovation thermique
+# RÈGLES D'INTERPRÉTATION :
+# - nature_operation :
+#   - "Réhabilitation" si le contexte parle de : réhabilitation, rénovation, restructuration, réhabilités
+#   - "Neuve" si le contexte parle de : neuf, construction, création
+#   - "Extension" si le contexte parle de : extension, agrandissement
+#   - "Rénovation thermique" si le contexte parle de : énergétique, thermique, CRE, MGP
+# - type_infrastructure :
+#   - "Scolaire" si : collège, lycée, école, enseignement (et assimilés)
+#   - "Commerce" si : restaurant, magasin, boutique
+#   - "Sportif" si : gymnase, stade, terrain
+#   - "Logements" si : appartement, habitat, immeuble
+#   - "Tertiaire" si : bureaux, administration, équipement public administratif
+#   - "Résidence" si : résidence
+# - site_occupe :
+#   - true si le contexte indique explicitement un site occupé / établissement en fonctionnement / milieu habité
+#   - false si le contexte indique explicitement l'absence de site occupé
+#   - sinon null
+# - surface_SDP_minimum :
+#   - extraire uniquement le nombre X quand le contexte exprime une SDP avec un seuil (ex: "SDP >= X m²", "supérieure ou égale à X m²", "au moins X m²").
+# - anciennete_max_projet :
+#   - extraire X quand le contexte indique "sur les X dernières années" / "dans les X dernières années"
+# - nombre_références :
+#   - extraire le nombre X quand le contexte demande "X références" / "X références réalisées" (par catégorie si plusieurs blocs distincts apparaissent).
 
-# type_infrastructure :
-# Logements | Sportif | Résidence | Tertiaire | Scolaire | Commerce | null 
-# exemple:
-# collège, lycée, école = Scolaire
-# restaurant, magasin, boutique = Commerce
-# gymnase, terrain = Sprotif
+# GESTION DES CAS MULTIPLES :
+# - Si plusieurs blocs distincts de références sont présents, renvoie plusieurs objets dans le tableau (un par bloc).
+# - Si plusieurs valeurs valides existent pour un champ dans un même bloc, prends la première valeur valide qui apparaît dans le contexte.
+# - Ne recopie pas le texte source : utilise uniquement les valeurs normalisées (listes autorisées) pour nature_operation et type_infrastructure.
 
-# site_occupe :
-# True | False | null
+# RAPPEL STRICT :
+# Ne renvoie que le JSON (un tableau), jamais de texte autour.
+# """
 
-# Règles d'interprétation :
 
-# Ancienneté
-# "sur les X dernières années" → anciennete_max_projet = X
+# REFERENCE = """
 
-# Site occupé
-# "site occupé" ou "établissement en fonctionnement" → site_occupe = True
+# Tu es un extracteur strict de références de projets à partir d’un texte de contexte.
+# Ta mission : extraire toutes les informations de références demandées dans l'appel d'offres selon la structure donnée.
 
-# Infrastructure
-# école | collège | lycée | enseignement → Scolaire
+# CONTRAINTES STRICTES :
+# Répond uniquement avec un JSON valide, rien d’autre (pas de texte, balises ou commentaires).
+# Le JSON doit être un tableau d’objets.
+# Si aucune info n’est trouvée, renvoie [].
+# Si un champ est manquant pour un objet, mets null.
+# STRUCTURE JSON :
 
-# Surface
-# "SDP ≥ X m²" → surface_SDP_minimum = X
-
-# Références
-# "X références" → nombre_références = X
-
-# Créer un objet JSON pour chaque catégorie.
-
-# Format :
 # [
 # {
 # "catégorie": string | null,
 # "nombre_références": number | null,
 # "nature_operation": "Réhabilitation" | "Neuve" | "Extension" | "Rénovation thermique" | null,
-# "site_occupe": True | False | null,
+# "site_occupe": true | false | null,
 # "surface_SDP_minimum": number | null,
-# "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | null,
+# "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | "Commerce" | null,
 # "anciennete_max_projet": number | null
 # }
 # ]
 
-# Exemple :
+# RÈGLES D’INTERPRÉTATION :
+# nature_operation :
+# "Réhabilitation" si le texte parle de réhabilitation, rénovation, restructuration, réhabilités
+# "Neuve" si le texte parle de neuf, construction, création
+# "Extension" si le texte parle de extension, agrandissement
+# "Rénovation thermique" si le texte parle de énergétique, thermique, CRE, MGP
+# type_infrastructure :
+# "Scolaire" si collège, lycée, école, enseignement
+# "Commerce" si restaurant, magasin, boutique
+# "Sportif" si gymnase, stade, terrain
+# "Logements" si appartement, habitat, immeuble
+# "Tertiaire" si bureaux, administration, équipement public administratif
+# "Résidence" si résidence
+# site_occupe :
+# true si le texte indique site occupé / établissement en fonctionnement / milieu habité
+# false si le texte indique explicitement absence de site occupé
+# sinon null
+# surface_SDP_minimum : extraire le nombre si le texte indique SDP avec seuil (ex: "SDP ≥ X m²", "au moins X m²")
+# anciennete_max_projet : extraire le nombre si le texte mentionne "dans les X dernières années"
+# nombre_références : extraire le nombre si le texte indique "X références" ou "X références réalisées"
+# GESTION DES CAS MULTIPLES :
+# Si plusieurs blocs distincts de références existent, crée un objet par bloc.
+# Si plusieurs valeurs pour un même champ, prends la première valide.
+# Normalise les valeurs selon les listes autorisées pour nature_operation et type_infrastructure.
+# RÈGLE FINALE :
+# Ne renvoie que le JSON, jamais de texte autour.
 
-# Texte :
-
-# Présentation de 3 références réalisées (livrées) dans les 5 dernières années (condition sine qua non*) :
-# - Référence n° 1 : Travaux de réhabilitation en site occupé d’une SDP supérieure ou égale à 4000 m².
-# - Référence n° 2 : Travaux de réhabilitation d’un établissement d’enseignement secondaire ou
-# supérieur ou ERP.
-# - Référence n° 3 : Travaux de rénovation thermique (CRE ou MGP)
-# Réponse :
-
-# [
-#   {
-#     "catégorie": null,
-#     "nombre_références": 3,
-#     "nature_operation": "Réhabilitation | Réhabilitation | Rénovation thermique",
-#     "site_occupe": "True | False | False",
-#     "surface_SDP_minimum": "4000 | null | null",
-#     "type_infrastructure": "null | Scolaire | null",
-#     "anciennete_max_projet": 5
-#   }
-# ]
 # """
 
-
 REFERENCE = """
-## INSTRUCTIONS D'EXTRACTION
-Tu es un expert en analyse d'appels d'offres. Ton rôle est d'extraire les critères de références demandés sous forme de JSON strict.
+Tu es un extracteur strict d'informations de références de projets à partir d’un texte de contexte.
 
-### RÈGLES CRITIQUES :
-1. NE JAMAIS RECOPIER le texte source. Si le texte dit "collèges", tu écris "Scolaire".
-2. VALEURS AUTORISÉES UNIQUEMENT : Si une information ne correspond à aucune valeur de la liste ci-dessous, tu DOIS mettre "null".
-3. PRIORITÉ : Si plusieurs options valides apparaissent, prends la première.
-4. FORMAT : Retourne un tableau d'objets [{}, {}]. Crée un objet par catégorie mentionnée.
+Ta mission : extraire toutes les informations relatives aux références demandées dans un appel d'offres selon la structure donnée.
 
-### RÈGLE DE SORTIE FINALE (STRICTE) :
-- Réponds EXCLUSIVEMENT avec le bloc JSON.
-- INTERDICTION de saluer, d'expliquer ta démarche ou d'ajouter du texte avant ou après le JSON.
-- Pas de balises Markdown de type ```json ... ```, renvoie uniquement le texte brut au format JSON.
+### CONTRAINTES STRICTES :
+1) Répond uniquement avec un JSON valide, rien d’autre (pas de texte, balises ou commentaires).  
+2) Le JSON doit être un tableau d’objets.  
+3) Si aucune information n’est trouvée pour un champ, mets `null`.  
+4) Si aucune référence n’est trouvée dans le contexte, renvoie `[]`.  
+5) **Priorité : remplir `catégorie`, `type_infrastructure` et `anciennete_max_projet` si elles sont explicitement mentionnées.**
+6) Si aucune information n'est trouvé pour remplir le JSON renvoie "Aucune information trouvée" sans rien d'autre
 
-### DICTIONNAIRE DE CORRESPONDANCE (Mapping) :
-
-- nature_operation :
-  * "Réhabilitation" (si : réhabilitation, rénovation, restructuration, réhabilités)
-  * "Neuve" (si : neuf, construction, création)
-  * "Extension" (si : agrandissement, extension)
-  * "Rénovation thermique" (si : énergétique, thermique, CRE, MGP)
-
-- type_infrastructure : 
-  * "Scolaire" (si : collège, lycée, école, enseignement, restauration scolaire)
-  * "Commerce" (si : restaurant, magasin, boutique)
-  * "Sportif" (si : gymnase, stade, terrain)
-  * "Logements" (si : appartement, habitat, immeuble)
-  * "Tertiaire" (si : bureaux, administration, équipement public administratif)
-
-- site_occupe : 
-  * True (si : "site occupé", "en fonctionnement", "milieu habité")
-  * False (si non mentionné ou explicitement vide)
-
-- nombre_références : Extraire le chiffre associé au besoin de la catégorie (ex: "5 références par catégorie" -> 5).
-
-### FORMAT DE SORTIE ATTENDU :
+### STRUCTURE JSON :
 [
   {
-    "catégorie": "Nom ou numéro de la catégorie",
+    "catégorie": string | null,
     "nombre_références": number | null,
     "nature_operation": "Réhabilitation" | "Neuve" | "Extension" | "Rénovation thermique" | null,
-    "site_occupe": boolean | null,
+    "site_occupe": true | false | null,
     "surface_SDP_minimum": number | null,
     "type_infrastructure": "Logements" | "Sportif" | "Résidence" | "Tertiaire" | "Scolaire" | "Commerce" | null,
     "anciennete_max_projet": number | null
   }
 ]
 
-Ne repond rien d'autre que le format de sortie attendu
+### RÈGLES D’INTERPRÉTATION :
+- **nature_operation** :
+  - "Réhabilitation" si le texte parle de réhabilitation, rénovation, restructuration, réhabilités  
+  - "Neuve" si le texte parle de neuf, construction, création  
+  - "Extension" si le texte parle de extension, agrandissement  
+  - "Rénovation thermique" si le texte parle de énergétique, thermique, CRE, MGP  
+
+- **type_infrastructure** :
+  - "Scolaire" si collège, lycée, école, enseignement  
+  - "Commerce" si restaurant, magasin, boutique  
+  - "Sportif" si gymnase, stade, terrain  
+  - "Logements" si appartement, habitat, immeuble  
+  - "Tertiaire" si bureaux, administration, équipement public administratif  
+  - "Résidence" si résidence  
+
+- **site_occupe** :
+  - true si le texte indique explicitement site occupé / établissement en fonctionnement / milieu habité  
+  - false si le texte indique explicitement absence de site occupé  
+  - sinon null  
+
+- **surface_SDP_minimum** :
+  - extraire uniquement le nombre si le texte exprime une SDP minimale (ex : "SDP ≥ X m²", "au moins X m²")  
+
+- **anciennete_max_projet** :
+  - extraire le nombre si le texte mentionne "dans les X dernières années" ou "sur les X dernières années"  
+
+- **nombre_références** :
+  - extraire le nombre si le texte indique "X références" ou "X références réalisées"  
+
+### GESTION DES CAS MULTIPLES :
+- Si plusieurs blocs distincts de références existent, crée un objet par bloc.  
+- Si plusieurs valeurs pour un même champ sont présentes, prends la première valeur valide.  
+- Normalise toutes les valeurs selon les listes autorisées pour **nature_operation** et **type_infrastructure**.  
+
+### EXEMPLE D’ENTRÉE → SORTIE JSON :
+
+Contexte : 
+"Dossier de référence sur 5 dernières années : 
+- Catégorie 1 : 5 références de collèges et écoles neuves ou réhabilitées.
+- Catégorie 2 : 5 références en conception-réalisation avec suivi d'exploitation-maintenance.
+- Catégorie 3 : 5 références de réhabilitation sur site occupé.
+- Catégorie 4 : 5 références de bâtiments réhabilités avec performances énergétiques.
+- Catégorie 5 : 5 références de bâtiments réhabilités avec confort d’été.
+- Catégorie 6 : 5 références de bâtiments réhabilités avec respect de la qualité de l’air intérieur."
+
+Sortie JSON attendue :
+[
+  {
+    "catégorie": "1",
+    "nombre_références": 5,
+    "nature_operation": null,
+    "site_occupe": null,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": "Scolaire",
+    "anciennete_max_projet": 5
+  },
+  {
+    "catégorie": "2",
+    "nombre_références": 5,
+    "nature_operation": null,
+    "site_occupe": null,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": null,
+    "anciennete_max_projet": 5
+  },
+  {
+    "catégorie": "3",
+    "nombre_références": 5,
+    "nature_operation": "Réhabilitation",
+    "site_occupe": true,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": null,
+    "anciennete_max_projet": 5
+  },
+  {
+    "catégorie": "4",
+    "nombre_références": 5,
+    "nature_operation": "Réhabilitation",
+    "site_occupe": null,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": null,
+    "anciennete_max_projet": 5
+  },
+  {
+    "catégorie": "5",
+    "nombre_références": 5,
+    "nature_operation": "Réhabilitation",
+    "site_occupe": null,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": null,
+    "anciennete_max_projet": 5
+  },
+  {
+    "catégorie": "6",
+    "nombre_références": 5,
+    "nature_operation": "Réhabilitation",
+    "site_occupe": null,
+    "surface_SDP_minimum": null,
+    "type_infrastructure": null,
+    "anciennete_max_projet": 5
+  }
+]
+
+### RÈGLE FINALE :
+- Ne renvoie que le JSON, jamais de texte autour.
 """
 
 VILLE = """
@@ -352,7 +455,8 @@ questions_rag = [
     },
     {
         "llm": "Extraits toutes les informations concernant les références demandés",
-        "rerank": "Nombres et types de références demandés",
+        # "rerank": "Combien de références (capacités technique et experience) sont demandées et quelles sont leurs catégories ?",
+        "rerank": "Quelles sont les expériences demandées ?",
         "user": "ref",
         "keyword": "Références"
     },
