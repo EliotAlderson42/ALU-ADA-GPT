@@ -172,6 +172,18 @@ def add_keyword_metadata(chunk, keyword):
     if keyword in chunk["text"]:
         chunk["metadata"]["has_keyword"] = True
 
+def add_methodologie_metadata(chunk):
+    METHODOLOGIE_PATTERN = re.compile(
+        r"\b(?:methodologie|méthodologie|note méthodologique|notes méthodologiques|valeur technique)\b",
+        re.IGNORECASE
+    )
+    if re.search(METHODOLOGIE_PATTERN, chunk["text"]):
+        print("-------------------")
+        print(f"TEXTE == {chunk['text']}")
+        print("-------------------")
+
+        chunk["metadata"]["has_methodologie"] = True
+
 def addMetaData(chunks, keyword):
     for chunk in chunks:
         add_price_metadata(chunk)
@@ -193,6 +205,7 @@ def addMetaData(chunks, keyword):
         add_number_metadata(chunk)
         add_operation_type_metadata(chunk)
         add_mandataire_requis_metadata(chunk)
+        add_methodologie_metadata(chunk)
         if keyword != None:
             add_keyword_metadata(chunk, keyword)
         # add_metadata.add_intervention_metadata(chunk)   
@@ -243,6 +256,8 @@ def match_metadata(keyword, chunks, embeddings):
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_number"]]
     elif keyword == "Type d'opération":
         candidats = [chunk for chunk in chunks if chunk["metadata"]["has_operation_type"]]
+    elif keyword == "Méthodologie":
+        candidats = [chunk for chunk in chunks if chunk["metadata"]["has_methodologie"]]
     else:
         return embeddings, chunks
     candidats_emb = [embeddings[chunk["metadata"]["id"]] for chunk in candidats if len(candidats) > 0]

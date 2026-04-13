@@ -69,8 +69,8 @@ def init_db() -> None:
 
 def _seed_default_questions(conn: sqlite3.Connection) -> None:
     """Insère les questions par défaut (celles de chunk.questions_rag)."""
-    import backend.chunk as chunk
-    for i, q in enumerate(chunk.questions_rag):
+    import backend.prompt_list as prompt
+    for i, q in enumerate(prompt.questions_rag):
         conn.execute(
             "INSERT INTO questions (llm, rerank, user, keyword, order_index) VALUES (?, ?, ?, ?, ?)",
             (

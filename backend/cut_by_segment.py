@@ -100,6 +100,7 @@ def create_chunk(text, id):
             "has_number": False,
             "has_operation_type": False,
             "has_keyword": False,
+            "has_methodologie": False,
             # "has_intervention": False,
         },
     }
