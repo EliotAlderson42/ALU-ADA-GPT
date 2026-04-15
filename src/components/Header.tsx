@@ -14,6 +14,9 @@ function Header() {
         <Link to="/questions" className={location.pathname === "/questions" ? "active" : ""}>
           Questions
         </Link>
+        <Link to="/memoire-technique" className={location.pathname === "/memoire-technique" ? "active" : ""}>
+          Memoire technique
+        </Link>
       </nav>
     </header>
   );

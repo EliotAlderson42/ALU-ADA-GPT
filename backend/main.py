@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from backend.create_dc1 import create_dc1, fill_dc1
 from backend.create_dc2 import create_dc2, fill_dc2
+from backend.create_methode import create_memoire_payload, fill_memoire_docx
 from backend.cut_by_segment import cut_by_segment
 import tempfile
 import os
@@ -214,6 +215,26 @@ def download_dc2():
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="Document DC2 non trouvé. Créez-le d'abord via « Créer DC2 ».")
     return FileResponse(path, filename="dc2.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@app.post("/memoire-technique")
+async def create_memoire_submit(request: Request):
+    """Reçoit un memoire technique modulable et génère memoire_technique.pdf."""
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Corps de requête JSON invalide")
+    payload = create_memoire_payload(body)
+    fill_memoire_docx(payload)
+    return {"ok": True}
+
+
+@app.get("/memoire-technique/download")
+def download_memoire():
+    """Télécharge le document memoire_technique.pdf généré."""
+    path = os.path.join(os.path.dirname(__file__), "output", "memoire_technique.pdf")
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Document non trouvé. Créez-le d'abord via « Créer le document ».")
+    return FileResponse(path, filename="memoire_technique.pdf", media_type="application/pdf")
 
 
 @app.post("/ask")

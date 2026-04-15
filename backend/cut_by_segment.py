@@ -120,6 +120,7 @@ def cut_again(text, number):
         re.compile(r"^\d+°"),
         re.compile(r"^[a-z]\-", re.IGNORECASE),  # a-
         re.compile(r"^Dossier\s+(\d+|[IVXLCDM]+)", re.IGNORECASE),
+        re.compile(r"^■", re.IGNORECASE),
         # re.compile(r"^\d+\.\d+"),    # 1.1
     ]
     text_list = text.split("\n")
@@ -235,7 +236,7 @@ def cut_by_segment(text):
         else:
             res.append(chunk)
             id += 1
-        # for r in res:
-        #     print(f"lenchunk = {len(r["text"])} content = {r["text"]}")
+        for r in res:
+            print(f"lenchunk = {len(r["text"])} content = {r["text"]}")
     return res
 

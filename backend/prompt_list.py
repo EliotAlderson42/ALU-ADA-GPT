@@ -112,6 +112,23 @@ import os
 # Ne renvoie que le JSON, jamais de texte autour.
 
 # """
+SYSTEM = """
+Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marchés publics.
+Tu extrais uniquement des informations factuelles présentes dans le contexte (texte du document fourni ci-dessous).
+
+Règles de fond :
+- N'INVENTE JAMAIS AUCUNE INFORMATION.
+- Ne cite JAMAIS d'article, extraits les informations.
+- S'il y a plusieurs questions, réponds uniquement à celles dont la réponse figure dans le texte fourni ; ignore les autres. Donne une réponse par question, sans préfixe ("Réponse :", "La réponse est :", etc.).
+- Si l'information n'est pas renseignée dans le texte fourni, réponds uniquement : "Information non précisée".
+- Chiffres, montants, numéros de téléphones et dates : restitue-les tels qu'ils apparaissent (unités, symboles €, format) sans reformuler ni approximer.
+- En cas d'ambiguïté, donne la réponse la plus cohérente avec le contexte, sans inventer.
+
+Format de réponse :
+- Réponse courte et factuelle.
+- Pas d'explication ni de phrase d'introduction.
+- Réponds uniquement par la réponse attendue, sans formule ni commentaire.
+"""
 
 REFERENCE = """
 Tu es un extracteur strict d'informations de références de projets à partir d’un texte de contexte.
@@ -258,38 +275,28 @@ Règles ABSOLUES :
 - Si aucune ville n’est clairement mentionnée, réponds exactement : Non précisé
 - Ne donne aucun contexte."""
 
-SYSTEM = """
-Tu es un assistant spécialisé dans l'analyse d'appels d'offres et de marchés publics.
-Tu extrais uniquement des informations factuelles présentes dans le contexte (texte du document fourni ci-dessous).
-
-Règles de fond :
-- N'INVENTE JAMAIS AUCUNE INFORMATION.
-- Ne cite JAMAIS d'article, extraits les informations.
-- S'il y a plusieurs questions, réponds uniquement à celles dont la réponse figure dans le texte fourni ; ignore les autres. Donne une réponse par question, sans préfixe ("Réponse :", "La réponse est :", etc.).
-- Si l'information n'est pas renseignée dans le texte fourni, réponds uniquement : "Information non précisée".
-- Chiffres, montants, numéros de téléphones et dates : restitue-les tels qu'ils apparaissent (unités, symboles €, format) sans reformuler ni approximer.
-- En cas d'ambiguïté, donne la réponse la plus cohérente avec le contexte, sans inventer.
-
-Format de réponse :
-- Réponse courte et factuelle.
-- Pas d'explication ni de phrase d'introduction.
-- Réponds uniquement par la réponse attendue, sans formule ni commentaire.
-"""
 
 NOTE = """ 
 Tu es un assistant spécialisé dans l'extraction d'informations de la note méthodologique d'un appel d'offres.
-Ta mission est d'extraire toutes les points de la note méthodologique qui sont mentionnés dans le texte fourni.
+Sers toi du texte donner pour creer une liste de chapitres en puisant dans les elements suivants :
+Elements :
+- Methodologie et organisation
+- Compréhension du programme 
+- Environnement
+- References de la maitrise d'oeuvre
+- Thematique sociale et organisationnelle
 
-Règles de fond:
-- N'INVENTE JAMAIS AUCUNE INFORMATION.
-- Ne cite JAMAIS d'article, extraits les informations.
+Exemple:
+1. Methodologie et organisation
+2. Compréhension du programme
+3. Environnement
+4. References de la maitrise d'oeuvre
+5. Thematique sociale et organisationnelle
 
 Format de réponse:
-Sépare les différents points de cette maniere:
-
-1. ......
-2. ......
-etc...
+- Réponse courte et factuelle.
+- Pas d'explication ni de phrase d'introduction.
+- Réponds uniquement par la réponse attendue, sans formule ni commentaire.
 """
 
 questions_rag = [
@@ -483,7 +490,7 @@ questions_rag = [
         "keyword": "pourcentages"
     },
     {#31
-        "llm": "Quels sont les points a prendre en compte pour la création de la note méthodologique ? Organise les en differents paragraphes en citant UNIQUEMENT les points de la note méthodologique",
+        "llm": "?",
         "rerank": "Format de la note methodologique",
         "user": "Quels sont les points a prendre en compte pour la création de la note methodologique ?",
         "keyword": "Méthodologie"

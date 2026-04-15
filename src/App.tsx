@@ -7,6 +7,7 @@ import Results from "./components/Results";
 import Questions from "./components/Questions";
 import Dc1 from "./components/Dc1";
 import Dc2 from "./components/Dc2";
+import MemoireTechnique from "./components/MemoireTechnique";
 
 // Type partagé pour les questions/réponses
 export type Question = { question: string; reponse: string };
@@ -36,6 +37,9 @@ function App() {
 
             {/* DC2 : formulaire */}
             <Route path="/dc2" element={<Dc2 />} />
+            <Route path="/memoire-technique" element={<MemoireTechnique />} />
+            <Route path="/note-methodologique" element={<MemoireTechnique />} />
+            <Route path="/notes-methodologiques" element={<MemoireTechnique />} />
           </Routes>
         </main>
 
