@@ -59,12 +59,43 @@ def init_db() -> None:
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS memo_administrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                role_phase_etudes TEXT DEFAULT '',
+                role_phase_chantier TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS memo_moyens_humains (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                administration_id INTEGER NOT NULL,
+                nom TEXT,
+                description TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY(administration_id) REFERENCES memo_administrations(id) ON DELETE CASCADE
+            )
+        """)
+        # Migration légère: ajoute les colonnes manquantes si la table existe déjà.
+        _ensure_column(conn, "memo_administrations", "description", "TEXT DEFAULT ''")
+        _ensure_column(conn, "memo_administrations", "role_phase_etudes", "TEXT DEFAULT ''")
+        _ensure_column(conn, "memo_administrations", "role_phase_chantier", "TEXT DEFAULT ''")
         conn.commit()
         cur = conn.execute("SELECT COUNT(*) FROM questions")
         if cur.fetchone()[0] == 0:
             _seed_default_questions(conn)
     finally:
         conn.close()
+
+
+def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, sql_type: str) -> None:
+    cols = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    names = {c["name"] if isinstance(c, sqlite3.Row) else c[1] for c in cols}
+    if column_name not in names:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {sql_type}")
 
 
 def _seed_default_questions(conn: sqlite3.Connection) -> None:
@@ -347,6 +378,170 @@ def delete_dc2_operateur(operateur_id: int) -> bool:
         return cur.rowcount > 0
     finally:
         conn.close()
+
+
+def get_all_memo_administrations() -> list[dict[str, Any]]:
+    """Retourne les administrations de la note méthodologique."""
+    init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "SELECT id, name, created_at FROM memo_administrations ORDER BY name COLLATE NOCASE ASC"
+        )
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"] or "",
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def add_memo_administration(name: str) -> dict[str, Any]:
+    """Crée une administration (ou retourne l'existante si même nom)."""
+    init_db()
+    clean = (name or "").strip()
+    if not clean:
+        raise ValueError("Le nom d'administration est requis.")
+    conn = _get_conn()
+    try:
+        existing = conn.execute(
+            "SELECT id, name, description, role_phase_etudes, role_phase_chantier, created_at FROM memo_administrations WHERE lower(name) = lower(?)",
+            (clean,),
+        ).fetchone()
+        if existing:
+            return {
+                "id": existing["id"],
+                "name": existing["name"] or "",
+                "description": existing["description"] or "",
+                "rolePhaseEtudes": existing["role_phase_etudes"] or "",
+                "rolePhaseChantier": existing["role_phase_chantier"] or "",
+                "created_at": existing["created_at"],
+            }
+        cur = conn.execute(
+            "INSERT INTO memo_administrations (name) VALUES (?)",
+            (clean,),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, name, description, role_phase_etudes, role_phase_chantier, created_at FROM memo_administrations WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+        return {
+            "id": row["id"],
+            "name": row["name"] or "",
+            "description": row["description"] or "",
+            "rolePhaseEtudes": row["role_phase_etudes"] or "",
+            "rolePhaseChantier": row["role_phase_chantier"] or "",
+            "created_at": row["created_at"],
+        }
+    finally:
+        conn.close()
+
+
+def delete_memo_administration(administration_id: int) -> bool:
+    """Supprime une administration et ses moyens humains associés."""
+    init_db()
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "DELETE FROM memo_moyens_humains WHERE administration_id = ?",
+            (administration_id,),
+        )
+        cur = conn.execute(
+            "DELETE FROM memo_administrations WHERE id = ?",
+            (administration_id,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_memo_administration_profile(administration_id: int) -> dict[str, Any] | None:
+    """Retourne le profil complet d'une administration (roles + moyens humains)."""
+    init_db()
+    conn = _get_conn()
+    try:
+        admin = conn.execute(
+            """SELECT id, name, description, role_phase_etudes, role_phase_chantier, created_at
+               FROM memo_administrations WHERE id = ?""",
+            (administration_id,),
+        ).fetchone()
+        if not admin:
+            return None
+        cur = conn.execute(
+            """SELECT id, nom, description, created_at
+               FROM memo_moyens_humains
+               WHERE administration_id = ?
+               ORDER BY id ASC""",
+            (administration_id,),
+        )
+        moyens = [
+            {
+                "id": r["id"],
+                "nom": r["nom"] or "",
+                "description": r["description"] or "",
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+        return {
+            "id": admin["id"],
+            "name": admin["name"] or "",
+            "description": admin["description"] or "",
+            "rolePhaseEtudes": admin["role_phase_etudes"] or "",
+            "rolePhaseChantier": admin["role_phase_chantier"] or "",
+            "moyensHumains": moyens,
+            "created_at": admin["created_at"],
+        }
+    finally:
+        conn.close()
+
+
+def save_memo_administration_profile(
+    administration_id: int,
+    description: str,
+    role_phase_etudes: str,
+    role_phase_chantier: str,
+    moyens_humains: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Enregistre le profil d'une administration et remplace sa liste de moyens humains."""
+    init_db()
+    conn = _get_conn()
+    try:
+        exists = conn.execute(
+            "SELECT id FROM memo_administrations WHERE id = ?",
+            (administration_id,),
+        ).fetchone()
+        if not exists:
+            return None
+        conn.execute(
+            """UPDATE memo_administrations
+               SET description = ?, role_phase_etudes = ?, role_phase_chantier = ?
+               WHERE id = ?""",
+            (description or "", role_phase_etudes or "", role_phase_chantier or "", administration_id),
+        )
+        conn.execute(
+            "DELETE FROM memo_moyens_humains WHERE administration_id = ?",
+            (administration_id,),
+        )
+        for mh in moyens_humains or []:
+            nom = str(mh.get("nom", "") if isinstance(mh, dict) else "").strip()
+            desc = str(mh.get("description", "") if isinstance(mh, dict) else "").strip()
+            if not nom and not desc:
+                continue
+            conn.execute(
+                "INSERT INTO memo_moyens_humains (administration_id, nom, description) VALUES (?, ?, ?)",
+                (administration_id, nom, desc),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return get_memo_administration_profile(administration_id)
 
 
 def update_question(question_id: int, llm: str | None = None, rerank: str | None = None, user: str | None = None, keyword: str | None = None) -> dict[str, Any] | None:

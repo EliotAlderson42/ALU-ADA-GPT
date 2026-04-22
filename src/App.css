@@ -2181,6 +2181,122 @@ select:focus {
   background: #fff;
 }
 
+.memo-phase-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.memo-phase-label {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.memo-phase-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.memo-phase-chip {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.memo-phase-chip.selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.memo-phase-order {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.memo-admin-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.memo-admin-mode {
+  display: flex;
+  gap: 1rem;
+}
+
+.memo-admin-add {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.memo-admin-add input,
+.memo-admin-add select {
+  min-width: 260px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.memo-admin-add button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.memo-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.memo-admin-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  background: #fafcff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memo-admin-card h4 {
+  margin: 0;
+}
+
+.memo-human-card {
+  border: 1px dashed #dbe4ef;
+  border-radius: 8px;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+}
+
+.memo-implication-table th:first-child,
+.memo-implication-table td:first-child {
+  min-width: 220px;
+}
+
+.memo-implication-cell {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .memo-table-box {
   border: 1px solid var(--border);
   border-radius: 10px;

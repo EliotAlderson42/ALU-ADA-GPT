@@ -159,6 +159,54 @@ def delete_dc2_operateur_route(operateur_id: int):
     return {"ok": True}
 
 
+@app.get("/memoire-technique/administrations")
+def list_memo_administrations():
+    """Liste les administrations disponibles pour le sous-chapitre moyens humains."""
+    return db.get_all_memo_administrations()
+
+
+@app.post("/memoire-technique/administrations")
+def create_memo_administration(body: dict):
+    """Crée une administration (ou retourne l'existante si le nom est déjà présent)."""
+    name = body.get("name", "")
+    try:
+        return db.add_memo_administration(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/memoire-technique/administrations/{administration_id}")
+def delete_memo_administration_route(administration_id: int):
+    """Supprime une administration de la base."""
+    if not db.delete_memo_administration(administration_id):
+        raise HTTPException(status_code=404, detail="Administration introuvable")
+    return {"ok": True}
+
+
+@app.get("/memoire-technique/administrations/{administration_id}/profile")
+def get_memo_administration_profile_route(administration_id: int):
+    """Retourne le profil complet d'une administration (roles + moyens humains)."""
+    profile = db.get_memo_administration_profile(administration_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Administration introuvable")
+    return profile
+
+
+@app.put("/memoire-technique/administrations/{administration_id}/profile")
+def save_memo_administration_profile_route(administration_id: int, body: dict):
+    """Enregistre le profil complet d'une administration."""
+    profile = db.save_memo_administration_profile(
+        administration_id=administration_id,
+        description=body.get("description", ""),
+        role_phase_etudes=body.get("rolePhaseEtudes", ""),
+        role_phase_chantier=body.get("rolePhaseChantier", ""),
+        moyens_humains=body.get("moyensHumains", []),
+    )
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Administration introuvable")
+    return profile
+
+
 @app.put("/questions/{question_id}")
 def update_question(question_id: int, body: QuestionUpdate):
     """Met à jour une question (champs optionnels)."""
