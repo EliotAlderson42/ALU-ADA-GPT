@@ -279,6 +279,8 @@ Règles ABSOLUES :
 NOTE = """ 
 Tu es un assistant spécialisé dans l'extraction d'informations de la note méthodologique d'un appel d'offres.
 Sers toi du texte donner pour creer une liste de chapitres en puisant dans les elements suivants :
+Tu dois imperativement garder l'ordre de citation pour la creation des chapitres.
+
 Elements :
 - Methodologie et organisation
 - Compréhension du programme 

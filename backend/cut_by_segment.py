@@ -65,10 +65,11 @@ def next_line_is_summary(i, segments):
     return False
 
 def delete_sommaire(text):
+    pattern = re.compile(r"page\s+\d+\s+sur\s+\d+", re.IGNORECASE)
     segments = text.split("\n")
     to_delete = []
     for i, segment in enumerate(segments):
-        if "........" in segment or next_line_is_summary(i, segments):
+        if "........" in segment or next_line_is_summary(i, segments) or re.search(pattern, segment):
             to_delete.append(segment)
     for delete in to_delete:
         print(f"DELETE = {delete}")
