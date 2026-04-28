@@ -50,6 +50,7 @@ class AskBody(BaseModel):
 # Dernier PDF traité : embeddings et chunks pour les questions supplémentaires (page Réponses)
 _last_upload_embeddings = None
 _last_upload_chunks = None
+_last_upload_qa = None
 
 
 @app.on_event("startup")
@@ -267,11 +268,11 @@ def download_dc2():
 
 @app.post("/memoire-technique")
 async def create_memoire_submit(request: Request):
-    """Reçoit un memoire technique modulable et génère memoire_technique.pdf."""
+    """Reçoit un memoire technique modulable et expose les Q/R associées."""
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="Corps de requête JSON invalide")
-    payload = create_memoire_payload(body)
+    payload = create_memoire_payload(body, _last_upload_qa)
     fill_memoire_docx(payload)
     return {"ok": True}
 
@@ -435,9 +436,10 @@ async def upload_pdf(file: UploadFile = File(...)):
             })
 
         # Stocker pour les questions supplémentaires sur la page Réponses
-        global _last_upload_embeddings, _last_upload_chunks
+        global _last_upload_embeddings, _last_upload_chunks, _last_upload_qa
         _last_upload_embeddings = chunk_embeddings
         _last_upload_chunks = chunks
+        _last_upload_qa = q_r
 
         # q_r pour affichage, data pour sauvegarde (future page Word, etc.)
         return {"questions": q_r, "data": data}

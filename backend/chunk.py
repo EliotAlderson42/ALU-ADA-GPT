@@ -308,7 +308,7 @@ def ask_supplementary_question(question, embeddings, chunks):
 def add_question(question, keyword, rerank_query, embeddings, chunks):
     question_emb = np.array(ollama.embeddings(model="nomic-embed-text", prompt=rerank_query)["embedding"])
     add_metadata.addMetaData(chunks, None)
-    data_embed, candidats = match_metadata(keyword, chunks, embeddings)
+    data_embed, candidats = add_metadata.match_metadata(keyword, chunks, embeddings)
 
     if not candidats:
         return "Aucun extrait trouvé pour ce mot-clé."

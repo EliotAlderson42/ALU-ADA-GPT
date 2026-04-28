@@ -72,3 +72,28 @@ J'ai l'impression que la descriptions de chaque "skill" n'est pas lié directeme
 
 8- Reference de la maitrise d'oeuvre (petits descriptif avec les utiliser et listes des references avec les petites images pour ettayer les propos)
 
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+CHOSES A GARDER:
+    - Toute la partie methodologie et organisation (appart le tab des livrables qui sera modulable sur le site et le tableau de competences)
+    - Environnement me semble ok
+    - Thematique sociale et organisationnelle (semble ok appart la partie 3 qui sera changeable)
+    - Entete et fin de page
+    - Notre philosophie et motivation
+
+CHOSES DEPENDANT DE LARCHI:
+    - La compréhenion du programme (Solutions bancale) *1
+    - Tabvleau livrables (Section Methodologie et organisation) *2 
+    - Tableau de competences (Section Methodologie et organisation) *3
+    - Page Header *4
+
+*1 = Possibilité de fine tuner le modele mais je doute enormement du resultat car le fine tuning recopie un style de redaction pas une facon de penser.
+Possibilité de construction a partir du programme mais la methodologie sera mauvaise car il ne peut pas l'apprendre.
+Possibilité de RAG ou je donne au llm une "compréhension du programme" d'une note methodo similaire mais la création d'un texte aussi long pose probleme au fil des lignes on perdras en qualité au vue du modele utiliser
+Possibilité de mise en place d'une methodologie de creation de la compréhension via les elements donnés dans programme 
+
+*2= Possibilité de laisser lutilisateur remplir les cases. -1 = perte de temps
+
+*3 = Meme idee qu'en haut, laisser l'utlisateur choisir les differentes competence. -1 = perte de temps
+
+*4 = Sois creer une base de données des logos des differents BE si vous etes ameneer a collaborer souvent avecs les memes.
+Sois demander a Lutilisateur dimporter Image et logos 

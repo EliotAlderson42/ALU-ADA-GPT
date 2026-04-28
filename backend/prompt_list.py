@@ -303,7 +303,8 @@ Format de réponse:
 
 questions_rag = [
     {#1
-        "llm": "Qu'est-ce qui est prévue pour ce projet? L'information est dans le header",
+        # "llm": "Qu'est-ce qui est prévue pour ce projet? L'information est dans le header",
+        "llm": "Quelle type d'operation sur quelle infrastructure a quelle location ?",
         "rerank": "Type de projet (école, gymnase, équipement culturel, bâtiment administratif)",
         "user": "Quel est le type d'infrastructure ?",
         "keyword": "Type"
